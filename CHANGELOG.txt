@@ -1,0 +1,409 @@
+FISH AUDIT PROMPT — CHANGELOG
+==============================
+
+Changes from v29.0.0: Deep verification of v3.7.0 parallel patterns.
+  6 new checks (269 → 275), 7 new data collection patterns, 3 metric
+  corrections, 1 stale var list cleanup.
+
+  F1: [MED] Missing data collection and checks for _TRACKED_TMPFILES
+      lifecycle. v3.7.0 introduced _TRACKED_TMPFILES global (14 refs)
+      to track all tmpdir/tmpfile paths across parallel operations.
+      Cleanup in _do_cleanup iterates and rm -rf each, then erases.
+      Without a dedicated check, leaked tmpfiles after abnormal exits
+      would go undetected.
+      Fixed: added check 273 (_TRACKED_TMPFILES lifecycle), GROUP D
+      collection pattern (TRACKED TMPFILES).
+  F2: [MED] Missing data collection and checks for functions
+      serialization safety (B-4 do_diagnose). needed_funcs list must
+      transitively cover all functions called by parallel _diag_*
+      children. Missing function → silent runtime failure in forked
+      subshell. Source target is functions-only file with no top-level
+      side effects.
+      Fixed: added check 274 (functions serialization), GROUP D
+      collection patterns (FUNCTIONS SERIALIZATION, PARSE SYSTEMCTL
+      BODY), GROUP E collection pattern (PARALLEL CHILD SOURCE).
+  F3: [MED] Missing checks for parallel env export lifecycle,
+      string join0 pattern, _parse_systemctl_show edge cases, and
+      parallel result file determinism.
+      Fixed: added checks 275-278 covering export/unexport symmetry,
+      null-terminated pipeline safety, parser robustness, and
+      deterministic result merge ordering. Added GROUP D collection
+      patterns (STRING JOIN0, PARALLEL ENV EXPORT, PARALLEL CHILD
+      TMPDIR). Added GROUP E pattern (PARALLEL BARE SUDO).
+  F4: [LOW] NUMERIC VAR INIT list contained _ps and _regdom_ps
+      (wireless regulatory vars eliminated in v3.7.0). Both always
+      returned init=0 test=0 — pure noise, no false finding impact.
+      Fixed: removed from list. Count stays at 35 local vars.
+  F5: [LOW] Check 197 command prefix count stale: ≥62 → ≥74.
+      v3.7.0 added command prefixes for parallel helper coreutils
+      calls.
+  F6: [LOW] Check 267 flock count stale: ≥8 → ≥10. v3.7.0 added
+      2 flock calls in parallel lock handling paths.
+
+Changes from v28.11.0: Sync with ry-install v3.7.0 (was v3.5.2).
+  6 new checks (263 → 269), metric updates across 13 existing checks,
+  8 new data collection patterns in GROUP D.
+
+  F1: [HIGH] Check 129 LOCK REGRESSION expected 0 flock hits, but
+      ry-install v3.6.3 added flock(1) for atomic stale-lock reclaim
+      in _acquire_lock. rg 'flock' now returns ≥10 hits (all legitimate).
+      Audit would false-flag every flock call as regression.
+      Fixed: check 129 rewritten to verify flock usage is correct
+      (in _acquire_lock context) and check exec 9/_LOCK_METHOD removal.
+      Check 238 updated to "mkdir + flock reclaim" (was "0 flock").
+      GROUP D and GROUP E lock data collection patterns separated.
+  F2: [MED] Phase 14 scope "v3.1.0–v3.5.2" missed 18 months of
+      structural changes (v3.5.3–v3.7.0): flock lock reclaim,
+      _ROOT_UUID caching, _kconfig_cache, fish 3.4+ gate, batch &
+      parallel processing with 5 new helpers. 6 new checks added:
+      267 (flock reclaim), 268 (_ROOT_UUID), 269 (_kconfig_cache),
+      270 (fish 3.4+), 271 (_pregenerate_content_files), 272 (parallel).
+  F3: [MED] NUMERIC VAR INIT list (GROUP A2) stale: contained code2
+      and total (removed in v3.6.x), missing _boot_rc, _flock_rc,
+      case_count, checked, record_idx (added in v3.6.x–v3.7.0).
+      34 → 35 local vars; check 222 count updated.
+  F4: [LOW] 13 metric-dependent checks had stale counts from v3.5.2:
+      function count 81→92, descriptions 81→92, section headers 20→18,
+      comment coverage 74/81→81/92, command prefix ≥65→≥62,
+      --argument-names ≥17→≥20, in-function set -g ~139→~199,
+      set -l ~579→~703, bare set ~290→~327, INSTALL_HAD_ERRORS
+      39→40 (48 total), functions >50 lines 27→41, do_test_all
+      subprocess count 19→20 (15 parallel + 3 sequential + 1
+      completions + 1 pre-flight).
+  F5: [LOW] GROUP D missing data collection for 8 new v3.6–v3.7
+      features: FLOCK RECLAIM, ROOT UUID CACHE, KCONFIG CACHE,
+      FISH VERSION GATE, PREGENERATE, PARALLEL PATTERNS,
+      ENSURE SUDO CACHED, PARSE SYSTEMCTL SHOW. New checks 267-272
+      would have no supporting data in p14.txt.
+  F6: [LOW] KEY LESSONS missing entries for checks 267-272. Added
+      flock atomicity, UUID caching, and parallel pattern lessons.
+  F7: [LOW] SPECIAL HANDLING "Expect 0 hits" included check 129
+      (now expects ≥10 flock hits). Removed 129, added 268.
+
+Changes from v28.10.0: 3 fixes from exhaustive self-audit against ry-install v3.5.2.
+  F1: [LOW] LOG TIMESTAMP data collection (GROUP D) used stale pattern
+      `_TS_CACHE|/proc/uptime` → 0 hits on v3.5.2. The script uses
+      `date '+%Y-%m-%dT%H:%M:%S'` and `date +%s` for timestamps, and
+      `set -l _ts` in _log. Pattern always produced empty EMPTY SECTION
+      GUARD diagnostic. No checklist item depends on this data, so no
+      check was affected — but the empty section wastes auditor attention.
+      Fixed: updated pattern to `date .+%[YsmH]|set -l _ts ` matching
+      actual timestamp mechanisms (18 hits on v3.5.2).
+  F2: [LOW] STDOUT LEAKS rg -v exclusion list (GROUP D) missing `>>`
+      redirect operator. 6 lines in ry-install v3.5.2 with
+      `printf ... >>"$LOG_FILE"` appeared as potential stdout leaks.
+      These are file writes (JSONL footer events in signal handlers),
+      not stdout leaks. Auditor would correctly dismiss them, but the
+      noise adds ~30 seconds of manual triage per audit.
+      Fixed: added `>>` to rg -v exclusion list. Reduces hits from 79
+      to 75 on v3.5.2.
+  F3: [LOW] MSG_SKIP missing _ask. DRY GATE produced 1 false positive
+      from `_ask "Perform full system upgrade? (pacman -Syu)"` — the
+      string argument contains "pacman" which matches the rg pattern,
+      but _ask is an interactive prompt function that doesn't execute
+      commands. Same false-positive class documented in AUDIT INFRA
+      LESSON (coreutil names in string arguments) but _ask was not in
+      the skip list. Verified: adding _ask produces 0 new false
+      negatives (no state-changing _ask calls in v3.5.2).
+      Fixed: added _ask to MSG_SKIP. AUDIT INFRA LESSON updated.
+
+Changes from v28.9.0: 7 fixes from cross-validation against ry-install v3.5.2.
+  F1: [HIGH] NUMERIC VAR INIT list (GROUP A2) contained only 17 of 34
+      local numeric test variables in ry-install v3.5.2. Missing 17 vars
+      including code2, idx_b, next_i2, mode_count, install_status,
+      _bl_loaded, _log_count, bad_perms, dir_bad, fixed_count, i,
+      mask_count, missing, pac_managed_bad, pad, perm_bad, read_ok.
+      Also excluded 3 false-positive vars: $status (Fish builtin,
+      never set -l), MAX_LOGS and _DIAG_ISSUES (script globals,
+      initialized via set -g, not set -l — extractor only checks
+      set -l so these always show init=0).
+      Check 222 would pass on the 17 listed vars while silently
+      missing uninitialized-variable bugs in the other 17.
+      Fixed: expanded var list from 17 → 34 local vars; updated
+      check 222 count; added exclusion comment in extractor.
+      AUDIT INFRA LESSON updated with re-derivation command and
+      exclusion methodology.
+  F2: [MED] HAS_LOCK DISPATCH section (GROUP D) collected
+      `set.*_has_lock` — strict subset of V351 HAS_LOCK REGRESSION
+      which collects `_has_lock`. Both expect 0 hits (check 263:
+      _has_lock removed in v3.5.1). Redundant collection wastes
+      context budget and inflates SIZE GATE risk for p14.txt.
+      Fixed: removed HAS_LOCK DISPATCH section. Checks 209 and 263
+      both served by V351 regression data.
+  F3: [LOW] LOG ROTATION LOCK rg pattern included `_has_lock|`
+      despite _has_lock removal (check 263). Pattern always matched
+      0 _has_lock hits, adding noise to output.
+      Fixed: removed `_has_lock|` from pattern; now collects only
+      `Log rotation` for check 187.
+  F4: [MED] No resume guard on audit-findings.txt. `: > "$O"` in
+      STEP 1 unconditionally overwrites. If a partial audit saved
+      findings and SETUP is re-run, all findings are lost silently.
+      CHECKPOINT mechanism (lines 280-282) saves findings but cannot
+      protect against SETUP re-execution.
+      Fixed: added existence check; non-empty $O backed up to
+      timestamped .bak before clearing.
+  F5: [MED] SIZE GATE recovery was manual only — prose instruction
+      to "identify lost sections by comparing headers." On a 7000+
+      line script with 60+ named sections, manual identification is
+      error-prone and time-consuming.
+      Fixed: automated recovery manifest. Section headers extracted
+      before and after truncation; diff written to $D/<file>-lost.txt.
+      STEP 2 ANALYZE prose updated to reference manifest.
+  F6: [LOW] Message function skip lists maintained separately in
+      DRY GATE (rg -v inline) and BARE COREUTILS (python list).
+      Three consecutive changelog entries (v28.6.0 F1/F2, v28.7.0 F1)
+      document adding functions to one list while missing the other.
+      Fixed: centralized as MSG_SKIP env var in STEP 1 setup. Both
+      DRY GATE and BARE COREUTILS reference MSG_SKIP. AUDIT INFRA
+      LESSON updated.
+  F7: [LOW] AUDIT INFRA LESSON for NUMERIC VAR INIT understated the
+      scope — said "stales when decomposition renames vars" but actual
+      undercoverage was 50% (17/34 local vars missing), caused by new
+      vars added across multiple refactors, not just renames.
+      Fixed: expanded lesson with var examples, exclusion methodology
+      for builtins/globals, and re-derivation command (grep -oP pattern).
+
+Changes from v28.8.0: 1 fix from double-check cross-validation pass.
+  F1: [LOW] SIZE GATE case label for p14.txt said "P14 (v3.1.0-v3.5.2
+      specifics)" but STEP 2 ANALYZE mapping correctly says "Phases
+      14-15 (version specifics v3.1.0-v3.5.2, deep checks)". Phase 15
+      deep checks (215-233) consume p14.txt data (section headers,
+      comment coverage, command prefix counts, scope shadow detector).
+      If p14.txt is truncated, the SIZE GATE diagnostic would mislead
+      the auditor into thinking only P14 is affected.
+      Fixed: p14 label → "P14-P15 (v3.1.0-v3.5.2 specifics, deep
+      checks)" matching STEP 2 ANALYZE mapping.
+
+Changes from v28.7.0: 2 fixes from script-vs-prompt cross-validation.
+  F1: [MED] DRY GATE rg -v skip list (GROUP E/P13 line 660) missing
+      _log and printf, contradicting AUDIT INFRA LESSON (lines 132-137)
+      which requires both DRY GATE and BARE COREUTILS to include _log
+      alongside _run and message functions. BARE COREUTILS had both;
+      DRY GATE did not. v28.6.0 F2 added 8 message functions but
+      missed _log and printf. Current ry-install v3.5.2 produces 0
+      false positives either way, but the skip list must match the
+      lesson for correctness on other/future scripts.
+      Fixed: added _log and printf to DRY GATE rg -v filter.
+  F2: [MED] PASS 2 exit code matrix (Groups B1-B4) did not capture
+      --test-all exit code. Check 243 references --test-all behavior
+      ("NON-TARGET: --test-all may return 1") but the only --test-all
+      data collection was Group C stderr capture. Exit code was lost
+      in background subshell. Auditor could not verify check 243's
+      --test-all claim without manual re-run.
+      Fixed: added --test-all to Group B2 exit code collection loop.
+
+Changes from v28.6.0: 2 fixes from double-check cross-validation pass.
+  F1: [MED] BARE COREUTILS skip list (GROUP E/P13) missing message
+      functions (_dry, _fail, _err, _warn, _ok, _info, _echo, _msg).
+      All 11 hits on ry-install v3.5.2 were false positives — coreutil
+      names appearing as string arguments in _dry "rm -f -- $dst" and
+      _fail "→ $dst (chmod failed)" style log messages. Auditor would
+      waste time triaging 11 non-findings. Fixed: added 8 message
+      functions to skip list. Verified: 0 hits with expanded list.
+  F2: [LOW] DRY GATE rg pattern (GROUP E/P13) had same message-function
+      noise: 11 hits from _err/_info/_warn containing 'sudo pacman' in
+      user-facing instruction strings. While check 237 is manual review
+      (auditor filters these), reducing noise improves efficiency.
+      Fixed: added _dry|_fail|_err|_warn|_ok|_info|_msg to rg -v.
+
+Changes from v28.5.0: 2 fixes from script-vs-prompt cross-validation.
+  F1: [MED] Check 229 and PASS 2 Group C comment claimed "18 fish
+      subprocesses" but do_test_all spawns 19 minimum: 1 syntax
+      pre-flight (fish --no-execute) + 14 modes + 3 extras + 1
+      completions. 18 is the test-item count, not the subprocess
+      count. Fixed: "18 test items (19 fish subprocesses incl. 1
+      syntax pre-flight)". PASS 2 comment updated to "19".
+  F2: [LOW] HELP FLAGS extraction rg pattern caught --color as false
+      positive from show_help description text "diff --color" (NOT a
+      CLI flag; --no-color flag removed v3.4.0, sole color control is
+      NO_COLOR env). Caused 17 vs 18 mismatch on check 228 (flag
+      coverage sync), requiring auditor investigation for a non-issue.
+      Fixed: added `rg -v '^--color$'` filter to HELP FLAGS extraction.
+
+Changes from v28.4.0: 4 fixes from second-pass audit prompt self-audit.
+  F1: [HIGH] Scope shadow detector split/if-check patterns (line 580)
+      still had 8 backslashes after v28.4.0 fix — only the regex lines
+      (lookbehind and printf search) were fixed, the non-raw Python
+      string split and `in` check were missed. 8 backslashes in file →
+      4 after bash → 2 in non-raw Python string = 2 literal backslashes,
+      but Fish printf uses 1. split() never matched actual printf lines.
+      Fixed: 8 → 4 backslashes, consistent with regex patterns.
+  F2: [MED] KEY LESSONS line 22 cross-referenced check 240 (--version
+      stdout) as companion to 129 (mkdir-only lock). Check 240 is a
+      PASS 2 runtime check about --version output, unrelated to locking.
+      Correct companion is check 238 (mkdir-only, 0 flock, stale reclaim).
+      Fixed: 129, 240 → 129, 238.
+  F3: [LOW] COMPLETIONS FLAGS python block (GROUP C2) was the last
+      remaining `open("$F")` in an unquoted heredoc. While functionally
+      safe (bash expands $F into double-quoted Python), it was
+      inconsistent with all other blocks now using sys.argv[1] (v28.4.0).
+      Fixed: quoted heredoc (`<< 'PYEOF'`) with `python3 - "$F"` arg
+      passing. Also simplified re.sub escape from `\\\\` to `\\` (the
+      unquoted heredoc was double-escaping backslashes via bash expansion).
+  F4: [INFO] AUDIT INFRA LESSONS escape explanation said "each layer
+      halves backslash count" but raw strings don't halve — only bash
+      expansion and regex interpretation halve. Numeric trace was
+      correct; prose was misleading. Rewritten to describe each layer's
+      behavior explicitly, including the non-raw string path.
+
+Changes from v28.3.0: 4 fixes from comprehensive audit prompt self-audit.
+  F1: [HIGH] Scope shadow detector (GROUP D) lookbehind regex over-escaped
+      4x: 8 backslashes in file → 4 after bash → Python raw string matched
+      4 literal backslashes instead of 1. Lines ending with \' (escaped
+      single quote in Fish printf) incorrectly detected as end-of-multiline
+      string, causing premature exit from in_string mode and false shadow
+      reports. Same over-escaping in printf '%s\n' pattern detection (matched
+      8 literal chars instead of \n). Fixed: 8 → 4 backslashes in all 3
+      occurrences. Affected check: scope shadow count (GROUP D).
+  F2: [HIGH] _py_extract dropped inner 'end' lines — if/else structure
+      meant depth > 0 end keywords were silently omitted from output.
+      Call sites piping through rg (pattern grepping) were unaffected,
+      but head -N call sites (TEST_ALL BODY, SIGPIPE BODY) produced
+      incomplete function bodies. Fixed: print inner end lines explicitly.
+  F3: [MED] 6 python3 blocks used open('$F') where $F is bash-expanded
+      inside double-quoted python3 -c strings. If script path contains
+      single quote, Python syntax breaks. v26.1.0 F5 fixed this for
+      fish -c blocks but missed python3 blocks. Fixed: sys.argv[1] with
+      "$F" argument passing in FUNC LENGTHS, DISPATCH CASES, FUNCTION
+      COMMENT COVERAGE, IN-FUNCTION GLOBALS, INLINE COMMENT DENSITY,
+      TMPFILE LIFECYCLE, COMMAND PREFIX, BARE COREUTILS (8 blocks total).
+  F4: [MED] BARE COREUTILS skip logic used f'set.*{cmd}' as Python `in`
+      substring match — literal string 'set.*rm' never matches 'set -l
+      rm_path'. Replaced with re.search(r'\bset\b.*\b' + cmd, line)
+      for proper regex matching. Eliminates false positives on set-variable
+      lines containing coreutils names.
+
+Changes from v28.2.0: 10 fixes from extended audit prompt self-audit.
+  F1: [HIGH] TMPFILE LIFECYCLE extractor (GROUP E/P13) had same depth
+      bug as _py_extract — only tracked function, not if/for/while/
+      switch/begin. Found 1 function vs 5 actual (get_file_content,
+      _install_system_files, _install_finalize, do_completions,
+      do_test_all). Checks 219, 234-236 had incomplete data.
+  F2: [MED] PASS 2 VERSION CONTENT rg pattern used \K without -P
+      flag — `rg -o 'VERSION "\K[^"]+'` fails at runtime (rg rejects
+      \K in default regex mode). Added -P with sed fallback.
+  F3: [MED] SPECIAL HANDLING "Expect 0 hits" list contained checks
+      212 (cross-block bare set) and 240 (--version stdout). Neither
+      are regression/0-hit checks. Removed both.
+  F4: [LOW] PASS 2 Group C comment "profile" stale (--profile
+      removed v3.3.2).
+  F5: [LOW] PASS 2 Group D comment "watch + ... + gaming" stale
+      (--watch, --gaming removed v3.3.2).
+  F6: [LOW] STEP 2 FALLBACKS comment referenced ${@:3} — not used
+      in fallback functions. Replaced with ${args[-1]}, ${range%%:*}.
+  F7: [INFO] Phase 13 section 13.4 EDGE CASES was an empty heading
+      with no checks. Removed; 13.5 renumbered to 13.4.
+  F8: [INFO] PASS 2 Group C dead noprofile subshell — ran --dry-run
+      to noprofile-out/err.txt never analyzed in STEP 2. Vestigial
+      from removed --profile test (v3.3.2). Removed.
+  F9: [MED] PASS 2 VERSION CONTENT comparison: --version outputs
+      "v3.5.2" but rg extracts "3.5.2" from VERSION global. Always
+      reports MISMATCH. Fixed: strip leading "v" from stdout before
+      comparison. Confirmed by execution test.
+  F10: [LOW] PASS 3 STEP 2 summary template missing BUG/STYLE
+       severity categories that STEP 1 collation counts. Added to
+       match.
+
+Changes from v28.1.0: 3 fixes from audit prompt self-audit.
+  F1: [HIGH] _py_extract depth tracking — only tracked `function`
+      keywords, not if/for/while/switch/begin. Caused premature
+      termination on 3/7 call sites: _chk_grep (3 vs 36 lines),
+      do_test_all (10 vs 125 lines), _cleanup_pipe (4 vs 9 lines).
+      Fixed with block_re matching (same pattern as GROUP C1 function
+      length analyzer). else/else-if correctly excluded from depth.
+  F2: [LOW] UDEV data collection rg pattern missing KERNEL== — actual
+      script uses KERNEL=="ntsync", not ACTION/SUBSYSTEM/ATTR.
+      Added KERNEL== to alternation.
+  F3: [INFO] AUDIT INFRA LESSONS SETUP entry updated to document the
+      _py_extract depth tracking fix (v28.2.0).
+
+Changes from v28.0.0: 2 updates from v3.5.2 log marker naming fix.
+  F1: Check 200 — added symmetric naming requirement: mode name without
+      extra qualifiers (e.g. "LINT START" not "LINT CHECK START").
+  F2: Derived-from bumped to v3.5.2; Phase 14 scope extended to
+      v3.1.0–v3.5.2.
+
+Changes from v26.5.1: 8 updates from v3.3.7 scope shadow fixes.
+  F1: Check 211 — 15 new block→nested-block scope shadows found and
+      fixed in v3.3.7 (6 functions, 12 unique vars). Total scope fixes
+      171 → 186, functions 43 → 49. Removed false "0 remaining" claim.
+      Added note about --lint awk detection gap.
+  F2: Check 212 — added 12 vars to cross-block list: install_file
+      (_cur_content), do_diff (actual_perms, actual_owner, target_owner),
+      do_diagnose (nvme_found, disksize), _install_collect_wifi
+      (wlan_iface, wifi_pass), _install_finalize (reload_wait, wifi_retry).
+  F3: Checks 204, 213 — set -l 646 → 638, in-function set -g 97 → 103,
+      grand total scope fixes 171 → 186.
+  F4: Derived-from bumped to v3.3.7.
+  F5: Phase 14 scope extended to v3.1.0–v3.3.7.
+  F6: GROUP D data collection: added Python scope-stack shadow detector
+      that catches block→nested-block shadows (the pattern the script's
+      --lint awk checker misses). Replaces simple rg -c count.
+  F7: KEY LESSONS 207-214 entry updated to note --lint detection gap.
+  F8: Check 211 scope fix breakdown updated with v3.3.7 round.
+
+Changes from v26.4.0: 7 updates from v3.3.5 scope shadow fixes.
+  F1: Checks 204, 213 — set -l 674 → 646, bare set 302 → 330 (28 scope
+      shadows fixed: issues, _log_lines, has_diff, run_stress, to_del).
+  F2: Checks 211, 213 — scope fix total 143 → 171 (+28), functions 41 → 43
+      (+do_logs, +_install_configure_services).
+  F3: Check 212 — cross-block var list updated (added do_logs/_log_lines,
+      do_diagnose/issues+run_stress, _install_configure_services/to_del).
+  F4: Derived-from bumped to v3.3.5.
+  F5: Phase 14 scope extended to v3.1.0–v3.3.5 (6 locations).
+  F6: --lint scope shadow awk rewritten (mawk-compatible, piped while
+      tracking, anchored ^set -l). No check number change — awk is
+      implementation detail of existing lint infrastructure.
+  F7: Checks 204, 213 — count methodology corrected: set -l uses anchored
+      grep (excludes 7 comment/awk false positives), bare set base
+      corrected from 287 → 302 (pre-existing undercount), grand total
+      scope fixes corrected from 211 → 171 (124+19+28).
+
+Changes from v26.3.0: 7 updates from v3.3.4 audit fixes.
+  F1: Check 69 — passphrase now rejects '%' (GKeyFile parse safety),
+  matching existing SSID restriction.
+  F2: Check 195 — section header count 19 → 18 (multiline comment
+  collapse in v3.3.3 cleanup merged one header).
+  F3: Checks 199, 213 — in-function set -g count 96 → 97
+  (new WIFI_SSID="" in passphrase % rejection path).
+  F4: Checks 204, 213 — set -l count 671 → 682 (scope shadow
+  lint check added 11 locals in do_lint).
+  F5: Check 206 — SECURITY INVARIANT updated: documents that
+  WIFI_SSID reaches $argv via nmcli, mitigated by validation.
+  F6: Derived-from version bumped to v3.3.4.
+  F7: Phase 14 scope extended to v3.1.0–v3.3.5.
+Changes from v26.2.0: 3 correctness fixes from v26.2 audit of v3.3.2.
+  F1: UDEV data collection regex — escape brace in ATTR{ to ATTR[{]
+  so rg doesn't reject the alternation as an invalid quantifier.
+  F2: Block comment count in check 201 — updated from 6 to 7 to match
+  current script structure (MANAGED FILE DESTINATIONS section added in
+  v3.3.x was not reflected in checklist).
+  F3: Derived-from version bumped to v3.3.3 (v3.3.2 findings fixed).
+Changes from v26.1.0: 8 robustness/correctness fixes.
+  F1: PIPESTATUS subshell uses explicit /bin/bash -c (not implicit
+  subshell inheritance) to guarantee bash-only builtins.
+  F2: Reconcile adaptive context budget arithmetic (freed 400 lines
+  explicitly shift to overhead reserve, 1800 total).
+  F3: Clarify D/E post-wait guard: collection-independent but
+  P13 analysis reads p14.txt for 11 shared patterns.
+  F4: Add PASS 2 runtime checklist count verification (16 checks)
+  alongside static 238-check verify. Total: 238+16=254.
+  F5: Replace fragile "'"$F"'" quoting in all fish -c blocks with
+  $argv[1] + -- "$F" argument passing (16 instances). Prevents
+  breakage on paths containing single quotes.
+  F6: Add check number navigation note between P11 and P13
+  documenting non-sequential numbering across phases.
+  F7: Add EMPTY SECTION GUARD after SIZE GATE to detect silent rg
+  failures producing zero-data sections in collection output.
+  F8: head -1 → head -n 1 in PASS 2 pre-flight (self-consistency
+  with check 141 anti-pattern rule).
+Changes from v26.0.0: reorder checklist phases to 1-11, 13, 14, 15
+  (was 1-11, 14, 15, 13). Clarify v25 check numbers in changelog.
+  Add PCRE2/multiline fallbacks for rg -Un and rg -cP patterns.
+  Add data-file→phase mapping in STEP 2 ANALYZE. SIZE GATE now
+  identifies affected phases. Context budget overflow guideline.
+  Strengthen PIPESTATUS bash-only warning. Fix summary table order.
+Changes from v25: remove --watch, --rollback, --gaming,
+  --profile, --interval (v3.3.2 feature removal). Update all
+  check references, data collection, runtime tests, counts.
+  4 v25 checks removed (v25 #200, #239, #250, #258). Renumbered 254 total.
