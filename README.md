@@ -1,6 +1,6 @@
 # fish-audit-prompt
 
-Version **30.0.0** · Derived from `ry-install.fish` v3.7.0 · 275 checks across 15 phases
+Version **31.2.0** · Derived from `ry-install.fish` v3.7.1 · 285 checks across 15 phases
 
 ## Overview
 
@@ -10,12 +10,12 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 
 | Metric | Value |
 |--------|-------|
-| Total checks | 275 (260 static + 15 runtime) |
+| Total checks | 285 (270 static + 15 runtime) |
 | Phases | 15 (12 static + 1 runtime + 1 gap analysis + 1 version-specifics) |
 | Passes | 3 (gather+analyze, runtime, finalize) |
 | Key lessons | 30+ (indexed by check number) |
 | Audit infra lessons | 15+ (indexed by prompt section) |
-| Changelog versions | 20 |
+| Changelog versions | 23 |
 
 ## Audit Structure
 
@@ -42,14 +42,14 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 | 11 | 14 | Testing & validation (preflight, config validation, dry-run) |
 | 12 | 15 | Runtime tests (stdout/stderr, exit codes, NO_COLOR, dry-run, lint) |
 | 13 | 5 | Gap analysis (race conditions, error paths, DRY gates, lock) |
-| 14 | 69 | v3.1.0–v3.7.0 specifics (KVER, helpers, sysctl, scope, decomposition, batch, parallel) |
+| 14 | 79 | v3.1.0–v3.7.1 specifics (KVER, helpers, sysctl, scope, decomposition, batch, parallel) |
 | 15 | 19 | Supplemental deep checks (formatting, tmpfile tracing, flag sync) |
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `fish-audit-prompt.txt` | The complete audit prompt (v30.0.0) |
+| `fish-audit-prompt.txt` | The complete audit prompt (v31.2.0) |
 | `CHANGELOG.txt` | Version history with per-finding details |
 | `README.md` | This file |
 
@@ -64,6 +64,9 @@ Each audit produces:
 
 See `CHANGELOG.txt` for the complete record. Key milestones:
 
+- **v31.2.0** — Exhaustive self-audit: fixed scope shadow nested function bug, _py_extract bare declaration regex, PASS 2 STEP 2 undefined $S, corrected extractor list/count, fixed bare coreutils word boundary filter; 4 new audit infra lessons
+- **v31.1.0** — Self-audit: clarified check 1 $() as style enforcement (valid Fish 3.0+), documented single-line begin/end extractor limitation, added inline comment density total count, 3 new audit infra lessons
+- **v31.0.0** — Sync with ry-install v3.7.1: 10 new checks (279-288) for kernel gate return, PROGRESS_STEPS ordering, nested parallelism guard, ssh-agent --user verify, dead var removal, _ensure_sudo_cached consistency, batch enable fallback, manifest success gate, syu ordering, flock rotation; corrected check 201 (28 section comments) and 262 (33 functions >50L); updated 4 metric checks
 - **v30.0.0** — Deep verification of v3.7.0 parallel patterns: 6 new checks for _TRACKED_TMPFILES lifecycle, functions serialization, parallel env export, string join0, _parse_systemctl_show, result file determinism; 7 new data collection patterns; stale numeric vars removed; command prefix ≥74, flock ≥10
 - **v29.0.0** — Sync with ry-install v3.7.0: 6 new checks for flock lock reclaim, _ROOT_UUID cache, _kconfig_cache, fish 3.4+ gate, batch/parallel processing; updated metrics (92 functions, 703 set -l, 35 numeric vars); check 129 updated for legitimate flock usage
 - **v28.11.0** — LOG TIMESTAMP pattern updated from stale `_TS_CACHE` to `date`; STDOUT LEAKS `>>` exclusion; MSG_SKIP `_ask` addition

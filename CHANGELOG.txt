@@ -1,6 +1,106 @@
 FISH AUDIT PROMPT — CHANGELOG
 ==============================
 
+Changes from v31.1.0: Exhaustive self-audit — 5 code fixes, 4 new
+  audit infra lessons. 0 new checks (stays at 285).
+
+  F1: [MED] Scope shadow detector keyword list missing 'function '.
+      Nested function definitions (function inner inside function outer)
+      did not increment depth. Inner function's 'end' would decrement
+      outer depth, causing premature function exit and corrupted scope
+      tracking for all subsequent variables in the outer function.
+      Fixed: added 'function ' to keyword list ['if ','for ',...,'begin',
+      'function '], matching block_re used by all other depth-tracking
+      extractors.
+  F2: [MED] _py_extract function name regex r'[ \-]' required a space
+      or hyphen after the function name. Bare declarations (function foo
+      with no --description or --argument-names) have only a newline
+      after the name, causing _py_extract to silently return empty output.
+      Fixed: changed to r'([ \-]|$)' to match end-of-line.
+  F3: [MED] PASS 2 STEP 2 ANALYSIS bash block used $S (script path)
+      but never defined it. S was defined in the STEP 1 bash block, but
+      each ```bash block is a separate shell invocation — variables
+      don't carry across. VERSION CONTENT check would always MISMATCH.
+      Fixed: added S=/home/claude/audit-src/script.fish to STEP 2 block.
+  F4: [LOW] EXTRACTORS audit infra lesson listed wrong extractors:
+      included "comment coverage" (no depth tracking) and missed
+      "inline comment density" and "completions flags" (both use
+      depth tracking). Count was 6, actual is 7.
+      Fixed: corrected list and count to 7.
+  F5: [LOW] BARE COREUTILS set filter used \b word boundary on cmd
+      name: re.search(r'\bset\b.*\b' + cmd + r'\b', line). Since
+      underscore is a word character, \brm\b never matches 'rm' in
+      'rm_path', so 'set -l rm_path /tmp' was not filtered — producing
+      a false positive (reported as bare coreutil when it's a var name).
+      Fixed: removed word boundary on cmd, using substring match.
+
+Changes from v31.0.0: Self-audit corrections and documentation hardening.
+  3 code fixes, 3 documentation additions, 0 new checks (stays at 285).
+
+  F1: [MED] Check 1 BASHISMS description said "no $()" implying $() is
+      invalid Fish syntax. $() is valid Fish 3.0+ (equivalent to ()).
+      The audit enforces () form for consistency, not syntax correctness.
+      Fixed: reworded to "no $() (prefer () form)" to clarify intent.
+  F2: [MED] All 6 Python extractors (_py_extract, func lengths, scope
+      shadow, tmpfile lifecycle, comment coverage, in-function globals)
+      assume fish_indent-formatted input. Single-line `begin; cmd; end`
+      constructs cause incorrect depth tracking (depth increments but
+      never decrements on same line). No scripts formatted with
+      fish_indent will trigger this, but the limitation was undocumented.
+      Fixed: added NOTE to PYTHON3 tool mandate documenting the
+      dependency on fish_indent-formatted input.
+  F3: [LOW] Check 2 `set -e` pattern overlaps with Phase 4 check 43
+      (modern set --erase syntax). Same hit categorized under two phases.
+      Fixed: added NOTE to check 2 directing auditors to categorize
+      Fish set --erase usage under P4 check 43.
+  F4: [LOW] INLINE COMMENT DENSITY extractor (GROUP D) did not print
+      total count of functions >50 lines. Auditor must manually count
+      output lines to verify check 262's claim of 33 functions.
+      Fixed: added `print(f'Total: {len(results)} functions >50 lines')`
+      to extractor output.
+  F5: [INFO] 3 new AUDIT INFRA LESSONS added: CHECK1 ($() style
+      enforcement), EXTRACTORS (single-line begin/end limitation),
+      CHECK2 (set -e categorization overlap).
+
+Changes from v30.0.0: Sync with ry-install v3.7.1 fixes.
+  10 new checks (275 → 285), 8 new data collection patterns, 6 metric
+  updates, 2 stale count corrections.
+
+  F1: [MED] Missing checks for v3.7.1 fixes. 10 new checks (#279-288)
+      in Phase 14.21 covering: check_kernel_version return enforcement,
+      PROGRESS_STEPS ordering after syu reorder, nested parallelism
+      guard for low-core systems, ssh-agent --user verify scope, B-3
+      dead variable removal, _ensure_sudo_cached consistent usage,
+      batch enable per-unit fallback, manifest success gate on
+      EXIT_BOOT_CRIT, syu-before-mkinitcpio ordering, and log rotation
+      flock serialization.
+      Fixed: added checks 279-288, Phase 14.21 section, 8 V371_*
+      data collection patterns in GROUP D.
+  F2: [LOW] Check 201 section/block comment count stale: prompt said
+      "20 section/block comments" but actual is 28 (10 ═══ headers +
+      18 ── markers). Count increased across v3.6.x-v3.7.x with new
+      code sections.
+      Fixed: updated check 201 from 20 → 28.
+  F3: [LOW] Check 262 functions >50L count wrong: prompt said "all 41
+      functions >50 lines" but actual is 33 (15 at 51-100L, 18 at
+      >100L). The "41" was never correct at any version — v3.5.0 had
+      27, v3.7.1 has 33.
+      Fixed: updated check 262 from 41 → 33 with corrected history.
+  F4: [LOW] Metrics updated for v3.7.1 actuals:
+      - In-function set -g: ~199 → ~200 (checks 199, 213)
+      - set -l: ~703 → ~704 (checks 204, 213)
+      - bare set: ~327 → ~330 (checks 204, 213)
+      - _run wraps: ≥65 → ≥69 (check 204)
+      - INSTALL_HAD_ERRORS: set true 40→42, total 48→50 (check 231)
+      - NUMERIC VAR INIT lesson: v31.0.0 note (stays at 35 vars)
+  F5: [LOW] Key lessons expanded with v3.7.1 entries: 279 (kernel gate
+      return), 280 (PROGRESS_STEPS ordering), 284 (_ensure_sudo_cached),
+      286 (manifest success gate).
+  F6: [INFO] All version range references updated v3.7.0 → v3.7.1 in
+      phase titles, group labels, data file mappings, and SIZE GATE
+      diagnostics.
+
+
 Changes from v29.0.0: Deep verification of v3.7.0 parallel patterns.
   6 new checks (269 → 275), 7 new data collection patterns, 3 metric
   corrections, 1 stale var list cleanup.

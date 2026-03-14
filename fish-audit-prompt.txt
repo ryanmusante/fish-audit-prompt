@@ -1,15 +1,15 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 30.0.0
-Derived from: ry-install.fish v3.7.0 audit (2026-03-09)
-Checks: 275
-Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.0)
+Version: 31.2.0
+Derived from: ry-install.fish v3.7.1 audit (2026-03-14)
+Checks: 285
+Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.1)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
 ───────────────────────────────────────────────────────────────
 
-275-check audit (260 static + 15 runtime) for production fish scripts managing system config,
+285-check audit (270 static + 15 runtime) for production fish scripts managing system config,
 sudo, credentials, embedded configs, and multi-mode dispatch with
 verification subsystems.
 
@@ -90,6 +90,14 @@ KEY LESSONS (sorted by check number):
            separator (blank line) handled, missing fields default safe
       278  Parallel result files: each child writes $dir/$phase.{ext},
            parent reads in deterministic order after wait
+      279  check_kernel_version must return nonzero on gate fail; callers
+           must capture and propagate (was silently returning 0 on < 6.14)
+      280  PROGRESS_STEPS ordering must match execution ordering in
+           do_install pipeline; reordering phases requires updating both
+      284  _ensure_sudo_cached helper replaces ad-hoc sudo true;
+           consistent pattern across all parallel-forking modes
+      286  _manifest_write must be gated on success; partial deploys
+           (EXIT_BOOT_CRIT) must not record to manifest
       P3   Static analysis misses execution-order bugs
 
   AUDIT INFRA LESSONS (sorted by audit prompt section):
@@ -127,7 +135,8 @@ KEY LESSONS (sorted by check number):
            _boot_rc, _flock_rc, case_count, checked, record_idx;
            removed total, code2). v30.0.0: removed _ps, _regdom_ps
            (wireless regulatory vars eliminated in v3.7.0), stays at
-           35 local vars. Excludes Fish builtins ($status) and script
+           35 local vars. v31.0.0: no change (stays at 35 local vars).
+           Excludes Fish builtins ($status) and script
            globals (MAX_LOGS, _DIAG_ISSUES) — extractor checks set -l
            only, so builtins/globals always show init=0 (false positive).
            Re-derive with: grep -oP 'test \$(\w+) -(?:eq|ne|
@@ -180,6 +189,36 @@ KEY LESSONS (sorted by check number):
            child tmpdir patterns, and _parse_systemctl_show body. GROUP E
            needs PARALLEL BARE SUDO and PARALLEL CHILD SOURCE to verify
            no unsafe patterns in forked subshells.
+    CHECK1  $() is valid Fish 3.0+ syntax — rg BASHISMS pattern
+           flags it, but it is style enforcement (prefer () form),
+           not a syntax error. Auditors: if $() found in target
+           script, categorize as style (P1) not syntax error.
+    EXTRACTORS  All depth-tracking Python extractors (7 total:
+           _py_extract, func lengths, scope shadow, tmpfile lifecycle,
+           in-function globals, inline comment density, completions
+           flags) assume multi-line begin/end from fish_indent.
+           Single-line `begin; cmd; end` increments depth without
+           matching 'end' on same line → subsequent depth tracking
+           corrupted. Always verify check 215 (fish_indent) before
+           trusting extractor output.
+    CHECK2  `set -e` rg pattern matches both bash errexit (P1 check 2)
+           and Fish set --erase shorthand (P4 check 43). Auditors
+           should categorize under P4 when used as erase.
+    GROUP_D  Scope shadow detector keyword list must include 'function '
+           for nested function definitions. Without it, inner function's
+           'end' decrements outer depth, causing premature function exit
+           and corrupted scope tracking. v31.2.0 fixed.
+    GROUP_D  _py_extract function name regex r'[ \-]' misses bare
+           declarations (function foo with no args/description).
+           v31.2.0: changed to r'([ \-]|$)' to match end-of-line.
+    PASS2  STEP 2 ANALYSIS bash block must define S= variable
+           independently from STEP 1. Each ```bash block is a separate
+           invocation — variables don't carry across.
+    GROUP_E  BARE COREUTILS set filter: \b word boundary treats
+           underscore as word char, so \brm\b never matches rm_path.
+           Removing word boundary on cmd (using substring match) lets
+           'set -l rm_path' be correctly filtered as variable
+           assignment, not bare coreutil usage.
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -235,11 +274,11 @@ STEP 3: SAVE CHECKLIST TO DISK
   "CHECKLIST REFERENCE" header through end of Phase 15, then write
   that content to /home/claude/audit-data/checklist.txt via
   create_file or bash heredoc. Copy verbatim — do not regenerate or
-  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 260.
+  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 270.
 
   PASS 2 runtime count verification (inline in PASS 2 section):
     grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 15.
-    Total: 260 + 15 = 275.
+    Total: 270 + 15 = 285.
 
   Read phases on demand during analysis:
     bat --plain -r START:END /home/claude/audit-data/checklist.txt
@@ -276,6 +315,10 @@ TOOL MANDATES:
   BATCH         Compound commands in single tool calls. Multiple rg in
                 one subshell. One bash_tool call per pass, not per check.
   PYTHON3       Primary for function body extraction and line iteration.
+                NOTE: All Python extractors assume fish_indent-formatted input.
+                Single-line `begin; cmd; end` constructs cause incorrect depth
+                tracking. Ensure check 215 (fish_indent) passes before relying
+                on extractor output for depth-sensitive checks.
                 Define _py_extract helper (see STEP 1) for depth-tracking.
                 fish -c extractors fail on some fish versions due to $
                 escaping in regex. Use python3 for: function lengths,
@@ -363,7 +406,7 @@ block_re = re.compile(r'^\s*(function |if |for |while |switch |begin\b)')
 for line in lines:
     s = line.strip()
     if not cap:
-        if re.match(r'^function ' + re.escape(target) + r'[ \-]', line):
+        if re.match(r'^function ' + re.escape(target) + r'([ \-]|$)', line):
             cap = True; depth = 1
         continue
     if not s.startswith('else') and block_re.match(line):
@@ -514,7 +557,7 @@ for line in lines:
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" &
 
-  # ── GROUP D: P14 v3.1.0–v3.7.0 specifics ──
+  # ── GROUP D: P14 v3.1.0–v3.7.1 specifics ──
   (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -630,6 +673,14 @@ print(f'{count} in-function set -g')
     echo "=== PARALLEL ENV EXPORT ===" && rg -n 'set -gx.*PROFILE\|set --erase.*PROFILE\|unexport' "$F" | head -20
     echo "=== PARALLEL CHILD TMPDIR ===" && rg -n 'diag_dir\|test_dir\|val_dir\|diff_batch_dir' "$F" | head -20
     echo "=== PARSE SYSTEMCTL BODY ===" && _py_extract "$F" "_parse_systemctl_show" | head -30
+    echo "=== V371 KERNEL GATE ===" && _py_extract "$F" "check_kernel_version" | rg 'return' | head -5
+    echo "=== V371 NPROC GUARD ===" && rg -n 'nproc_val\|nproc.*lt 8\|sequentially' "$F" | head -10
+    echo "=== V371 SSH USER VERIFY ===" && rg -n 'systemd-analyze.*user.*verify\|--user verify' "$F" | head -10
+    echo "=== V371 MANIFEST GATE ===" && rg -n 'MANIFEST_SKIP\|EXIT_BOOT_CRIT.*manifest' "$F" | head -5
+    echo "=== V371 SYU ORDER ===" && rg -n 'SYSTEM_UPGRADED' "$F" | head -10
+    echo "=== V371 FLOCK ROTATION ===" && rg -n 'flock.*xargs\|flock.*_log_base' "$F" | head -5
+    echo "=== V371 BATCH FALLBACK ===" && rg -n 'Batch enable failed\|retrying individually' "$F" | head -5
+    echo "=== V371 DEAD IDX ===" && _py_extract "$F" "do_check" | rg 'idx 0' | head -5
     echo "=== INLINE COMMENT DENSITY ===" && python3 -c "
 import re, sys
 lines = open(sys.argv[1]).readlines()
@@ -654,6 +705,7 @@ for i, line in enumerate(lines, 1):
             fn = None
 for fn, l, c in sorted(results, key=lambda x: x[2]):
     print(f'{fn:<45} {l:>4}L  {c} inline comments')
+print(f'Total: {len(results)} functions >50 lines')
 " "$F" 2>&1
     echo "=== SCOPE SHADOW DETECTOR ===" && python3 -c "
 import re, sys
@@ -675,7 +727,7 @@ for i, line in enumerate(lines, 1):
         continue
     if not func: continue
     opened = False
-    for kw in ['if ','for ','while ','switch ','begin']:
+    for kw in ['if ','for ','while ','switch ','begin','function ']:
         if s.startswith(kw): depth += 1; scope_stack.append({}); opened = True; break
     if s == 'end':
         if depth > 1:
@@ -740,7 +792,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
     for line in r.stdout.strip().split('\n'):
         if not line: continue
         skip = any(x in line for x in [f'command {cmd}', f'sudo {cmd}', '#', 'echo', 'string', 'printf'] + msg_skip)
-        if not skip and not re.search(r'\bset\b.*\b' + cmd + r'\b', line): print(line)
+        if not skip and not re.search(r'\bset\b.*' + cmd, line): print(line)
 " "$F" 2>&1 | head -20
     echo "=== RUN QUOTING ===" && rg -n '_run ' "$F" | rg -v '#|function |_log' | rg '\$[A-Z]' | rg -v '"' | head -10
     echo "=== HARDCODED PATHS ===" && rg -n '/home/|/root/' "$F" | rg -v '#|\$HOME|HOME|getent' | head -10
@@ -762,7 +814,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
   # ── Post-wait data guard (D and E collect independently; E's ──
   # ── P13 analysis reads p14.txt for 11 shared patterns)       ──
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.7.0 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.7.1 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -781,7 +833,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14-P15 (v3.1.0-v3.7.0 specifics, deep checks)" ;;
+        p14)    phases="P14-P15 (v3.1.0-v3.7.1 specifics, deep checks)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -833,7 +885,7 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phases 14-15 (version specifics v3.1.0-v3.7.0, deep checks)
+    p14.txt   → Phases 14-15 (version specifics v3.1.0-v3.7.1, deep checks)
 
   If p14.txt is missing or truncated, mark shared-pattern P13
   checks (234-238) as DEFERRED. If p13.txt is missing, mark P13
@@ -861,8 +913,10 @@ STEP 2: ANALYZE ON DISK
   self-checkers) are NOT findings.
 
   1.1  BASHISMS
-       [ ] 1. Syntax contamination: no $(), [[]], ${var}, &&/|| in fish
+       [ ] 1. Syntax contamination: no $() (prefer () form), [[]], ${var}, &&/|| in fish
        [ ] 2. Scope/export: no export, set -e VAR, functions -e, unset, local
+               NOTE: `set -e` hits also match Phase 4 check 43 (modern syntax).
+               Categorize under P4 if used as Fish set --erase shorthand.
        [ ] 3. source usage: verify correct (not bash-style sourcing)
 
   1.2  VERSION GATE
@@ -906,9 +960,9 @@ STEP 2: ANALYZE ON DISK
 ─── Phase 3: Error Handling & Exit Codes (15 checks) ─────────
 
   3.1  EXIT CODES
-       [ ] 24. 0: success/help/version
-       [ ] 25. 1: runtime errors
-       [ ] 26. 2: usage errors
+       [ ] 24. 0: success/help/version/completions/check-clean
+       [ ] 25. 1: runtime errors; 3: preflight; 4: boot-critical; 5: lock
+       [ ] 26. 2: usage errors; 10: drift (--check); 11: lint errors
        [ ] 27. Signal exits: 130 SIGINT (128+2), 141 SIGPIPE (128+13)
        [ ] 28. Functions use return not exit; no bare exit; no exit inside functions
 
@@ -1074,7 +1128,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 110. All --help options in README
        [ ] 111. Sub-options + modifiers documented as separate entries
        [ ] 112. --logs sub-targets + --install-file documented
-       [ ] 113. Exit codes (0,1,2,130,141) in both --help and README
+       [ ] 113. Exit codes (0,1,2,3,4,5,10,11,130,141) in both --help and README
        [ ] 114. Prerequisites listed; mode cross-refs
 
 ─── Phase 8: Function Architecture (19 checks) ───────────────
@@ -1177,7 +1231,7 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-170, P13 → #234-238, P14 → #171-214,254-278,
+  Check ranges: P1-11 → #1-170, P13 → #234-238, P14 → #171-214,254-288,
   P15 → #215-233, P12 → #239-253.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
@@ -1197,7 +1251,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v3.7.0 Specifics (69 checks) ──────────
+─── Phase 14: v3.1.0–v3.7.1 Specifics (79 checks) ──────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1281,14 +1335,14 @@ STEP 2: ANALYZE ON DISK
        [ ] 198. --argument-names on ≥20 functions.
 
   14.11 SCOPING + ROLLBACK (v3.2.9–v3.2.10)
-       [ ] 199. In-function set -g: ~199 (intentional VERIFY_*/flag globals
+       [ ] 199. In-function set -g: ~200 (intentional VERIFY_*/flag globals
                + _DIAG_ISSUES/_DIAG_CHECKS counter globals).
 
   14.12 LOGGING + VERIFICATION (v3.2.8–v3.2.10)
        [ ] 200. _log START/END markers on 7 modes. rg START → 7, END → 8.
                Symmetric naming: mode name without extra qualifiers
                (e.g. "LINT START" not "LINT CHECK START"; v3.5.2).
-       [ ] 201. 20 section/block comments: managed destinations, logging/counters,
+       [ ] 201. 28 section/block comments: managed destinations, logging/counters,
                file operations, runtime verification, lint,
                install pipeline, CLI argument parsing, diagnostic helpers,
                signal/cleanup chain, and more.
@@ -1296,9 +1350,9 @@ STEP 2: ANALYZE ON DISK
                after atomic mv. Failure → INSTALL_HAD_ERRORS.
        [ ] 203. WiFi credentials: set before use, erased after iwd config.
                Not stored as globals beyond pipeline.
-       [ ] 204. Unconditional log rotation for all modes. ~703 vars have
-               explicit set -l. ~327 bare set for cross-block vars.
-               _run wraps ≥65 distinct sudo commands for logging.
+       [ ] 204. Unconditional log rotation for all modes. ~704 vars have
+               explicit set -l. ~330 bare set for cross-block vars.
+               _run wraps ≥69 distinct sudo commands for logging.
 
   14.13 STDOUT + SECURITY (v3.2.10)
        [ ] 205. All UI output → stderr. Intentional stdout: return-value
@@ -1339,9 +1393,9 @@ STEP 2: ANALYZE ON DISK
                install_file (_cur_content),
                _install_collect_wifi (wlan_iface, wifi_pass),
                _install_finalize (reload_wait, wifi_retry).
-       [ ] 213. In-function set -g count: ~199 (intentional VERIFY_*/flag/
-               _DIAG counter globals). Bare set count: ~327 (cross-block
-               updaters). set -l count: ~703. Grand total scope fixes: 186.
+       [ ] 213. In-function set -g count: ~200 (intentional VERIFY_*/flag/
+               _DIAG counter globals). Bare set count: ~330 (cross-block
+               updaters). set -l count: ~704. Grand total scope fixes: 186.
        [ ] 214. _analyze_log total_step_s: bare set (not set -g on local).
                Step timing total correctly computed. (F-14, v3.3.1)
 
@@ -1380,12 +1434,12 @@ STEP 2: ANALYZE ON DISK
                state-changing sudo calls wrapped in _run for audit trail.
        [ ] 261. set -l next_arg in --logs arg parser (not bare set).
                Consistent with --diff/--install-file arg parsers.
-       [ ] 262. Inline comment density: all 41 functions >50 lines have
-               ≥2 inline comments (decomposition reduced count from 34
-               pre-refactor). 27 comments added in v3.5.0 to 19
-               previously under-documented functions. v3.5.1: 5 more
-               section comments in validate_configs (3) and
-               _install_configure_services (2).
+       [ ] 262. Inline comment density: all 33 functions >50 lines have
+               ≥2 inline comments (v3.5.0 decomposition reduced count from
+               34 to 27; v3.7.x batch/parallel additions grew it to 33).
+               27 comments added in v3.5.0 to 19 previously under-documented
+               functions. v3.5.1: 5 more section comments in
+               validate_configs (3) and _install_configure_services (2).
 
   14.18 DEAD CODE + LOG GUARD (v3.5.1)
        [ ] 263. _has_lock variable removed: 0 hits for _has_lock. Lock
@@ -1449,6 +1503,45 @@ STEP 2: ANALYZE ON DISK
                order after wait. Missing result file → graceful skip or
                safe default (test -n guard on read).
 
+  14.21 v3.7.1 FIXES (10 checks)
+       [ ] 279. check_kernel_version returns 1 on kernel < 6.14 (was silently
+               returning 0). Callers (_install_preflight) capture failure,
+               set INSTALL_HAD_ERRORS, and warn. Regression: 0 code paths
+               where < 6.14 gate silently passes.
+       [ ] 280. PROGRESS_STEPS ordering matches execution order in do_install
+               pipeline. After syu reorder (syu before mkinitcpio), entries
+               15-17 updated: "System upgrade" → "Rebuilding initramfs" →
+               "Updating bootloader". rg count: 20 PROGRESS_STEPS = 20
+               _progress calls.
+       [ ] 281. B-5 do_test_all nested parallelism guard: on systems with
+               < 8 cores (nproc), all 15 read-only modes run sequentially
+               instead of parallel forking. Prevents oversubscription from
+               nested parallel children (verify-static: 17, check: 4,
+               diagnose: 5, diff: 17 forked jobs each).
+       [ ] 282. B-1 validate_configs ssh-agent user unit: systemd-analyze
+               --user verify for ssh-agent.service. Previously ran without
+               --user flag (system scope verify on user unit).
+       [ ] 283. B-3 do_check dead variable: unused `set -l idx 0` in Job 4
+               inline parser removed. rg 'idx 0' in do_check → 0 hits.
+       [ ] 284. _ensure_sudo_cached consistent usage: verify_static and
+               do_test_all use _ensure_sudo_cached helper instead of ad-hoc
+               `sudo true`. All parallel-forking modes use same pattern.
+               rg '_ensure_sudo_cached' → ≥4 call sites.
+       [ ] 285. B-7 batch enable per-unit fallback: _install_configure_services
+               in --all mode retries each unit individually on batch
+               `systemctl enable --now` failure. Identifies which unit failed.
+       [ ] 286. _manifest_write gated on EXIT_BOOT_CRIT: do_install skips
+               manifest write on boot-critical failure to avoid recording
+               partially-deployed state. rg 'MANIFEST_SKIP.*boot' → 1 hit.
+       [ ] 287. Syu before mkinitcpio in _install_rebuild_boot: system upgrade
+               runs before initramfs rebuild so new kernels are present for
+               mkinitcpio -P. SYSTEM_UPGRADED check prevents double-upgrade.
+               Pacman hooks provide backup coverage.
+       [ ] 288. Log rotation flock serialization: xargs rm wrapped in
+               flock -n when flock available. Eliminates last-write-wins
+               race between concurrent read-only instances. Falls back
+               to bare xargs when flock absent.
+
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
   15.1 FORMATTING
@@ -1504,8 +1597,8 @@ STEP 2: ANALYZE ON DISK
        [ ] 230. do_test_all tmpfile cleanup: rm-f on both branches.
 
   15.12 GLOBAL STATE CONTRACTS
-       [ ] 231. INSTALL_HAD_ERRORS: initialized false, set true in 40
-               locations (48 total references). Never reset mid-pipeline.
+       [ ] 231. INSTALL_HAD_ERRORS: initialized false, set true in 42
+               locations (50 total references). Never reset mid-pipeline.
                Only mutated within install pipeline.
 
   15.13 PATTERN CORRECTNESS
@@ -1572,7 +1665,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   (
     for mode in \
       "--verify-static" "--verify-runtime" "--lint" "--test-all" \
-      "--completions" "--diff" "--diagnose" \
+      "--completions" "--diff" "--diagnose" "--check" \
       "--install-file" "--install-file /etc/kernel/cmdline --dry-run"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
@@ -1641,6 +1734,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
 STEP 2: ANALYSIS
 
   ```bash
+  S=/home/claude/audit-src/script.fish
   D=/home/claude/audit-data/runtime
   echo "=== STDERR BYTES (expect 0) ===" && wc -c "$D"/{help,h,ver,v}-err.txt
   echo "=== EXIT CODES ===" && bat --plain "$D/exit-codes.txt" 2>/dev/null || cat "$D/exit-codes.txt"
@@ -1666,9 +1760,10 @@ STEP 3: CHECKLIST
        [ ] 243. 0: --help, -h, --version, -v, --lint, --completions,
                --logs list/system, --dry-run, -n,
                -a --dry-run, --all --diagnose --dry-run
-               NON-TARGET: --test-all may return 1 (verify modes fail on
-               container). Always examine stderr to distinguish expected
-               non-target failures from real bugs.
+               NON-TARGET: --test-all may return 1, --check returns 10
+               (drift), --verify-* and --diagnose return 1 (missing
+               configs/hardware). Always examine stderr to distinguish
+               expected non-target failures from real bugs.
        [ ] 244. 2: invalid flag, conflicts, modifier-only,
                --install-file no path, --diff relative/path
        [ ] 245. 1: runtime failures
@@ -1728,10 +1823,10 @@ STEP 2: SUMMARY TABLE
    10     | 11     |      |      |
    11     | 14     |      |      |
    13     | 5      |      |      |
-   14     | 69     |      |      |
+   14     | 79     |      |      |
    15     | 19     |      |      |
    12     | 15     |      |      |
-  TOTAL  | 275    |      |      |
+  TOTAL  | 285    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
@@ -1739,7 +1834,7 @@ STEP 2: SUMMARY TABLE
     Always PASS       137 (false-positive documentation)
     Runtime only      143 (redirect regression), PASS 2 checks (15)
     Expect 0 hits     83, 171, 176, 177 (functional; comments exempt),
-                      193, 257, 259, 260, 263, 268, 273
+                      193, 257, 259, 260, 263, 268, 273, 283
                       (regressions)
     WARN not exit 2   247 (modifier-only flags)
     Examine stderr    --test-all exit 1 on non-target: always inspect
