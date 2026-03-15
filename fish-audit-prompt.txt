@@ -1,7 +1,7 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 31.2.0
-Derived from: ry-install.fish v3.7.1 audit (2026-03-14)
+Version: 31.2.1
+Derived from: ry-install.fish v3.7.1 audit (2026-03-15)
 Checks: 285
 Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.1)
 
@@ -265,7 +265,7 @@ STEP 2: FALLBACKS (bash-only — do not fish-ify)
 
 STEP 3: SAVE CHECKLIST TO DISK
 
-  Save the 260-check static analysis checklist (phases 1-11, 13-15;
+  Save the 270-check static analysis checklist (phases 1-11, 13-15;
   phase 12's 15 runtime checks are inline in PASS 2) from the
   CHECKLIST REFERENCE section (at end of this document) to
   /home/claude/audit-data/checklist.txt.
@@ -1231,7 +1231,7 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-170, P13 → #234-238, P14 → #171-214,254-288,
+  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-288,
   P15 → #215-233, P12 → #239-253.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
@@ -1700,7 +1700,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     timeout "$RUNTIME_TIMEOUT" fish "$S" --lint >"$D/lint-out.txt" 2>"$D/lint-err.txt"
   ) &
   (
-    # Extended timeout for test-all (spawns 19 fish subprocesses); capture stderr for analysis
+    # Extended timeout for test-all (spawns 20 fish subprocesses); capture stderr for analysis
     timeout 90 fish "$S" --test-all >/dev/null 2>"$D/test-all-err.txt"
   ) &
   wait
