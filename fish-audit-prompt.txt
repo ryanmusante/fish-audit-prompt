@@ -1,9 +1,9 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 31.2.1
-Derived from: ry-install.fish v3.7.1 audit (2026-03-15)
+Version: 3.7.13
+Derived from: ry-install.fish v3.7.13 audit (2026-03-15)
 Checks: 285
-Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.1)
+Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.13)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
@@ -557,7 +557,7 @@ for line in lines:
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" &
 
-  # ── GROUP D: P14 v3.1.0–v3.7.1 specifics ──
+  # ── GROUP D: P14 v3.1.0–v3.7.13 specifics ──
   (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -814,7 +814,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
   # ── Post-wait data guard (D and E collect independently; E's ──
   # ── P13 analysis reads p14.txt for 11 shared patterns)       ──
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.7.1 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.7.13 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -833,7 +833,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14-P15 (v3.1.0-v3.7.1 specifics, deep checks)" ;;
+        p14)    phases="P14-P15 (v3.1.0-v3.7.13 specifics, deep checks)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -885,7 +885,7 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phases 14-15 (version specifics v3.1.0-v3.7.1, deep checks)
+    p14.txt   → Phases 14-15 (version specifics v3.1.0-v3.7.13, deep checks)
 
   If p14.txt is missing or truncated, mark shared-pattern P13
   checks (234-238) as DEFERRED. If p13.txt is missing, mark P13
@@ -1251,7 +1251,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v3.7.1 Specifics (79 checks) ──────────
+─── Phase 14: v3.1.0–v3.7.13 Specifics (79 checks) ──────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1503,7 +1503,7 @@ STEP 2: ANALYZE ON DISK
                order after wait. Missing result file → graceful skip or
                safe default (test -n guard on read).
 
-  14.21 v3.7.1 FIXES (10 checks)
+  14.21 v3.7.13 FIXES (10 checks)
        [ ] 279. check_kernel_version returns 1 on kernel < 6.14 (was silently
                returning 0). Callers (_install_preflight) capture failure,
                set INSTALL_HAD_ERRORS, and warn. Regression: 0 code paths

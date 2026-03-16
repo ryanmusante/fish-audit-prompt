@@ -1,6 +1,10 @@
 # fish-audit-prompt
 
-Version **31.2.1** · Derived from `ry-install.fish` v3.7.1 · 285 checks across 15 phases
+![version](https://img.shields.io/badge/version-3.7.13-blue?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
+
+Derived from `ry-install.fish` v3.7.13 · 285 checks across 15 phases
 
 ## Overview
 
@@ -41,14 +45,14 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 | 11 | 14 | Testing & validation (preflight, config validation, dry-run) |
 | 12 | 15 | Runtime tests (stdout/stderr, exit codes, NO_COLOR, dry-run, lint) |
 | 13 | 5 | Gap analysis (race conditions, error paths, DRY gates, lock) |
-| 14 | 79 | v3.1.0–v3.7.1 specifics (KVER, helpers, sysctl, scope, decomposition, batch, parallel) |
+| 14 | 79 | v3.1.0–v3.7.13 specifics (KVER, helpers, sysctl, scope, decomposition, batch, parallel) |
 | 15 | 19 | Supplemental deep checks (formatting, tmpfile tracing, flag sync) |
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `fish-audit-prompt.txt` | The complete audit prompt (v31.2.1) |
+| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.13) |
 | `CHANGELOG.txt` | Version history with per-finding details |
 | `README.md` | This file |
 

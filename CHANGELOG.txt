@@ -1,7 +1,12 @@
 FISH AUDIT PROMPT — CHANGELOG
 ==============================
 
-Changes from v31.2.0: 5 fixes from exhaustive self-audit.
+v3.7.13 (2026-03-16): Unified version scheme.
+  Version numbering consolidated: prompt version (was 31.x) and
+  ry-install.fish version (was 3.7.x) merged into single 3.7.x
+  track. No check changes (stays at 285). README badges added.
+
+v31.2.1 — Changes from v31.2.0: 5 fixes from exhaustive self-audit.
   0 new checks (stays at 285).
 
   F1: [MED] PASS 2 Group C comment said "spawns 19 fish subprocesses"
