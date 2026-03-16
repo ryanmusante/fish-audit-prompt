@@ -1,7 +1,7 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
 Version: 3.7.13
-Derived from: ry-install.fish v3.7.13 audit (2026-03-15)
+Derived from: ry-install.fish v3.7.13 audit (2026-03-16)
 Checks: 285
 Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.13)
 
@@ -36,7 +36,6 @@ KEY LESSONS (sorted by check number):
       188  LC_ALL=C on date-sorted filenames prevents locale bugs
       190  Validate cmdline params against compiled kernel config
       191  Boot sanity gate prevents unbootable system after rebuild
-      192  sysfs direct reads (_gather_temps hwmon)
       193  Dead globals are regression vectors
       197  `command` prefix bypasses function/alias overrides
       198  --argument-names self-documents function signatures
@@ -55,9 +54,9 @@ KEY LESSONS (sorted by check number):
            from subprocess (v3.4.1: completions writes to file, not
            stdout; DRY gate causes subprocess to produce zero output)
       231  Global state mutations need clear lifecycle contracts
- 254–256   Decomposition: shared counters via globals (_DIAG_ISSUES/
-           _DIAG_CHECKS), init in orchestrator before helper calls;
-           return propagation from extracted helpers (explicit or implicit)
+ 254–256   Decomposition: extracted helpers need explicit return $status;
+           dead function removal requires verifying 0 call sites and 0
+           transitive references (completions, test-all, needed_funcs)
       257  `path basename` requires Fish 3.5+; use string replace for
            3.3+ compat when version gate is lower than 3.5
       260  Bare sudo bypassing _run breaks audit trail; wrap ALL
@@ -112,7 +111,7 @@ KEY LESSONS (sorted by check number):
            interpreted as option; use printf -- or %s format
     PASS2  --test-all exit code on non-target must be examined via
            stderr, not just categorized as "container-adjusted"
-    GROUP_D  Decomposed functions (_diag_*, _logs_*) increase GROUP D
+    GROUP_D  Decomposed functions (_logs_*) increase GROUP D
            collection size; monitor SIZE GATE for p14.txt truncation
            when script exceeds ~7000 lines
     GROUP_D  Removal-regression rg (sp5100, btusb) catches
@@ -128,16 +127,15 @@ KEY LESSONS (sorted by check number):
            python3 heredoc with block_re depth tracking and
            regex extraction of -l flag patterns from printf content
     GROUP_A2  NUMERIC VAR INIT list stales on each version bump:
-           decomposition renames (issues → _DIAG_ISSUES), new vars
-           added by refactors (code2, idx_b, next_i2, mode_count,
-           install_status, etc.). v28.10.0: expanded from 17 → 34
-           local vars. v29.0.0: expanded to 35 local vars (added
-           _boot_rc, _flock_rc, case_count, checked, record_idx;
-           removed total, code2). v30.0.0: removed _ps, _regdom_ps
-           (wireless regulatory vars eliminated in v3.7.0), stays at
-           35 local vars. v31.0.0: no change (stays at 35 local vars).
+           new vars added by refactors (code2, idx_b, next_i2,
+           mode_count, install_status, etc.). v28.10.0: expanded from
+           17 → 34 local vars. v29.0.0: expanded to 35 (added _boot_rc,
+           _flock_rc, case_count, checked, record_idx; removed total,
+           code2). v30.0.0: removed _ps, _regdom_ps. v31.0.0: no change.
+           v3.7.13: removed verify_status, missing, _bl_loaded (diagnose
+           cleanup + dead code removal), stays at 32 local vars.
            Excludes Fish builtins ($status) and script
-           globals (MAX_LOGS, _DIAG_ISSUES) — extractor checks set -l
+           globals (MAX_LOGS) — extractor checks set -l
            only, so builtins/globals always show init=0 (false positive).
            Re-derive with: grep -oP 'test \$(\w+) -(?:eq|ne|
            lt|gt|le|ge) ' script.fish | sort -u, then filter out
@@ -426,7 +424,7 @@ for line in lines:
   export MSG_SKIP
 
   # ── GROUP A1: P1-3 syntax, routing, errors ──
-  (
+  ( (
     echo "=== BASHISMS ===" && rg -n '\$\(|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | head -30
     echo "=== FISH_INDENT ===" && if command -v fish_indent >/dev/null 2>&1; then fish_indent --check "$F" 2>&1; echo "exit: $?"; else echo "UNAVAILABLE (fish_indent not found — check 216 DEFERRED)"; fi
     echo "=== STRING OPS ===" && rg -n 'string (match|replace|split|join|trim)' "$F" | rg -v -- '--' | head -30
@@ -437,10 +435,10 @@ for line in lines:
     echo "=== STATUS ===" && rg -n '\$status|\$pipestatus' "$F" | head -30
     echo "=== SIGNALS ===" && rg -n 'trap|--on-signal|--on-event|fish_exit' "$F" | head -20
     echo "=== CLEANUP ===" && rg -n 'mktemp|rm -f|rm -rf|cleanup|_do_cleanup' "$F" | head -30
-  ) > "$D/p1-3.txt" 2>&1; echo "GROUP_A1_EXIT=$?" >> "$D/p1-3.txt" &
+  ) > "$D/p1-3.txt" 2>&1; echo "GROUP_A1_EXIT=$?" >> "$D/p1-3.txt" ) &
 
   # ── GROUP A2: P4-5 vars, security ──
-  (
+  ( (
     echo "=== SCOPE ===" && rg -n 'set -[glx]|set --erase|set --global|set --local' "$F" | head -50
     echo "=== FOR LOOPS ===" && rg -n 'for .* in ' "$F" | head -30
     echo "=== INJECTION ===" && rg -n 'eval|source ' "$F" | head -20
@@ -451,16 +449,16 @@ for line in lines:
     echo "=== EXT CMDS ===" && rg -n 'command -q|command -v' "$F" | head -30
     echo "=== NUMERIC VAR INIT ===" && python3 -c "
 import subprocess, sys; F = sys.argv[1]
-# Excludes Fish builtins (\$status) and script globals (MAX_LOGS, _DIAG_ISSUES) — always initialized by runtime/top-level set -g
-for v in 'errors total_err line_count ret idx_a idx_b perm_checked dir_checked verify_status failed code steps_count reload_wait wifi_retry next_i next_i2 _bl_loaded _log_count bad_perms dir_bad fixed_count i install_status mask_count missing mode_count pac_managed_bad pad perm_bad read_ok _boot_rc _flock_rc case_count checked record_idx'.split():
+# Excludes Fish builtins (\$status) and script globals (MAX_LOGS) — always initialized by runtime/top-level set -g
+for v in 'errors total_err line_count ret idx_a idx_b perm_checked dir_checked failed code steps_count reload_wait wifi_retry next_i next_i2 _log_count bad_perms dir_bad fixed_count i install_status mask_count mode_count pac_managed_bad pad perm_bad read_ok _boot_rc _flock_rc case_count checked record_idx'.split():
     init = subprocess.run(['rg', '-c', f'set -l {v} ', F], capture_output=True, text=True)
     used = subprocess.run(['rg', '-c', 'test \$' + v + ' ', F], capture_output=True, text=True)
     print(f'{v}: init={init.stdout.strip() or \"0\"} test={used.stdout.strip() or \"0\"}')
 " "$F" 2>&1
-  ) > "$D/p4-5.txt" 2>&1; echo "GROUP_A2_EXIT=$?" >> "$D/p4-5.txt" &
+  ) > "$D/p4-5.txt" 2>&1; echo "GROUP_A2_EXIT=$?" >> "$D/p4-5.txt" ) &
 
   # ── GROUP B: P6-7 embedded configs, cross-refs ──
-  (
+  ( (
     echo "=== CONFIG FORMATS ===" && rg -n '\[Unit\]|\[Service\]|\[Install\]' "$F" | head -20
     echo "=== SYSTEMD ===" && rg -n 'ExecStart|After=|Type=' "$F" | head -20
     echo "=== UDEV ===" && rg -n 'ACTION==|SUBSYSTEM==|ATTR[{]|KERNEL==' "$F" | head -20
@@ -469,10 +467,10 @@ for v in 'errors total_err line_count ret idx_a idx_b perm_checked dir_checked v
     echo "=== VERSION ===" && rg -n 'VERSION|SYSTEM_DEST|USER_DEST|SERVICE_DEST|get_file_content|MASK' "$F" | head -30
     echo "=== DISPATCH ===" && rg -n 'do_\w+ \$|do_\w+ "\$' "$F" | rg -v 'function |#|_log' | head -20
     echo "=== SYSCTL ===" && rg -n 'sysctl|BBR|tcp_fastopen|default_qdisc|inotify' "$F" | head -30
-  ) > "$D/p6-7.txt" 2>&1; echo "GROUP_B_EXIT=$?" >> "$D/p6-7.txt" &
+  ) > "$D/p6-7.txt" 2>&1; echo "GROUP_B_EXIT=$?" >> "$D/p6-7.txt" ) &
 
   # ── GROUP C1: P8-9 architecture, patterns ──
-  (
+  ( (
     echo "=== FUNCTIONS ===" && rg -n '^function |^end$' "$F" | head -50
     echo "=== FUNC LENGTHS ===" && python3 -c "
 import re, sys
@@ -504,10 +502,10 @@ for i, line in enumerate(lines, 1):
     echo "=== ARGPARSE TMP ===" && rg -n 'ry-argparse|_argparse_tmp' "$F" | head -10
     echo "=== ANTIPATTERNS ===" && rg -n 'cat .* \| |test .* = ""|head -1\b|tail -1\b' "$F" | head -20
     echo "=== REDIRECT BUG ===" && rg -n 'string trim.*<|string match.*<' "$F" | rg -v '#' | head -10
-  ) > "$D/p8-9.txt" 2>&1; echo "GROUP_C1_EXIT=$?" >> "$D/p8-9.txt" &
+  ) > "$D/p8-9.txt" 2>&1; echo "GROUP_C1_EXIT=$?" >> "$D/p8-9.txt" ) &
 
   # ── GROUP C2: P10-11 magic numbers, docs, testing ──
-  (
+  ( (
     echo "=== MAGIC NUMS ===" && rg -n 'TEMP_|DISK_|BOOT_|MAX_|CACHE_|ROOT_AVAIL|NVME_LIFE' "$F" | head -30
     echo "=== DRY ===" && rg -n 'DRY|dry.run|--dry-run|\[DRY\]' "$F" | head -20
     echo "=== TEST_ALL ===" && rg -n 'do_test_all|verify.static|verify.runtime' "$F" | head -20
@@ -555,10 +553,10 @@ for line in lines:
     echo "=== DEST CROSSREF ===" && rg -o '"/(boot|etc)[^"]*"' "$F" 2>/dev/null | tr -d '"' | sort | head -30
     echo "=== PRINTF INJECTION ===" && rg -n "printf '.*\\\$" "$F" | rg -v '%s|#|%%' | head -10
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
-  ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" &
+  ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
   # ── GROUP D: P14 v3.1.0–v3.7.13 specifics ──
-  (
+  ( (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
     echo "=== _verify_unit_syntax ===" && rg -n '_verify_unit_syntax' "$F" | head -10
@@ -571,14 +569,13 @@ for line in lines:
     echo "=== BTUSB REGRESSION ===" && rg -ni 'btusb|enable_autosuspend' "$F" | rg -v '^[0-9]*:\s*#' | head -10
     echo "=== PPD REGRESSION ===" && rg -n 'power-profiles-daemon' "$F" | head -10
     echo "=== MODPROBE_BLACKLIST ===" && rg -n 'MODPROBE_BLACKLIST' "$F" | head -10
-    echo "=== HELPER BODIES ===" && rg -n '^function _ntsync_state|^function _verify_unit|^function _check_service|^function _find_pacnew|^function _get_boot_time' "$F" | head -10
+    echo "=== HELPER BODIES ===" && rg -n '^function _ntsync_state|^function _verify_unit|^function _check_service|^function _find_pacnew|^function _get_boot_time|^function _btrfs_pre_snapshot|^function _gkeyfile_escape' "$F" | head -15
     echo "=== UNAME INLINE ===" && rg -n 'uname -r' "$F" | rg -v 'KVER|#' | head -10
     echo "=== SYSCTL DEST ===" && rg -n 'sysctl.d' "$F" | head -10
     echo "=== SYSCTL CONTENT ===" && rg -n 'default_qdisc|tcp_congestion|tcp_fastopen|max_user_watches' "$F" | head -20
     echo "=== SYSCTL RELOAD ===" && rg -n 'sysctl --system' "$F" | head -10
     echo "=== SYSCTL VERIFY ===" && rg -n '_chk_grep.*/etc/sysctl' "$F" | head -10
     echo "=== SYSCTL RUNTIME ===" && rg -n '/proc/sys/' "$F" | head -10
-    echo "=== SYSCTL DIAGNOSE ===" && rg -n '_diag_sysctl|_diag_config|Sysctl Tuning' "$F" | head -10
     echo "=== INSTALL_HAD_ERRORS ===" && rg -n 'INSTALL_HAD_ERRORS' "$F" | head -20
     echo "=== CAT TERMINATOR ===" && rg -n 'cat --' "$F" | head -20
     echo "=== FUNCTION DESCRIPTIONS ===" && rg -c -- '--description' "$F"
@@ -592,7 +589,6 @@ for line in lines:
     echo "=== SIGPIPE HANDLER ===" && rg -n '_cleanup_pipe|SIGPIPE|on-signal PIPE|exit 141' "$F" | head -10
     echo "=== VALIDATE KERNEL PARAMS ===" && rg -n '_validate_kernel_params|param_config_map|/proc/config.gz' "$F" | head -10
     echo "=== BOOT SANITY ===" && rg -n '_preflight_boot_sanity|vmlinuz|initramfs.*non.zero' "$F" | head -10
-    echo "=== GATHER TEMPS ===" && rg -n '_gather_temps|lm_sensors' "$F" | head -10
     echo "=== DEAD GLOBALS ===" && rg -n 'MODULES_LOAD|_LOCK_METHOD|_GPU_BUSY_PCT' "$F" | head -5
     echo "=== V340 REMOVED ===" && rg -n 'do_clean\b|_find_steam_root|--no-color\b|--no-log\b' "$F" | rg -v '#|echo|_msg|_warn|_err|_fail|_info|printf|_log' | head -10
     echo "=== V350 BACKUP REMOVED ===" && rg -n '_backup_|BACKUP_BASE|BACKUP_DIR|MAX_BACKUPS|do_rollback' "$F" | head -10
@@ -649,9 +645,6 @@ print(f'{count} in-function set -g')
     echo "=== MODE DISPATCH ===" && rg -n 'set.*MODE ' "$F" | rg -v '#|set -l MODE|argparse' | head -20
     echo "=== EXIT_CODE DISPATCH ===" && rg -n 'set.*exit_code ' "$F" | rg -v '#|set -l exit_code' | head -20
     echo "=== MODE_LABEL DISPATCH ===" && rg -n 'set.*mode_label ' "$F" | head -10
-    echo "=== DIAG DECOMPOSITION ===" && rg -n '^function _diag_|^function do_diagnose ' "$F" | head -10
-    echo "=== DIAG GLOBALS ===" && rg -n '_DIAG_ISSUES|_DIAG_CHECKS' "$F" | head -30
-    echo "=== DIAG RETURN ===" && _py_extract "$F" "do_diagnose" | rg 'return' | head -10
     echo "=== LOGS DECOMPOSITION ===" && rg -n '^function _logs_file_ops|^function _logs_journal|^function _logs_list|^function do_logs ' "$F" | head -10
     echo "=== LOGS RETURN STATUS ===" && rg -n 'return \$status' "$F" | head -10
     echo "=== LOGS FUZZY MATCH ===" && rg -n 'fuzzy\|Did you mean\|_t_prefix\|proximity' "$F" | head -10
@@ -670,9 +663,16 @@ print(f'{count} in-function set -g')
     echo "=== TRACKED TMPFILES ===" && rg -n '_TRACKED_TMPFILES' "$F" | head -20
     echo "=== FUNCTIONS SERIALIZATION ===" && rg -n 'needed_funcs|funcs_file' "$F" | head -10
     echo "=== STRING JOIN0 ===" && rg -n 'string join0' "$F" | head -10
-    echo "=== PARALLEL ENV EXPORT ===" && rg -n 'set -gx.*PROFILE\|set --erase.*PROFILE\|unexport' "$F" | head -20
-    echo "=== PARALLEL CHILD TMPDIR ===" && rg -n 'diag_dir\|test_dir\|val_dir\|diff_batch_dir' "$F" | head -20
+    echo "=== PARALLEL CHILD TMPDIR ===" && rg -n 'test_dir\|val_dir\|diff_batch_dir' "$F" | head -20
     echo "=== PARSE SYSTEMCTL BODY ===" && _py_extract "$F" "_parse_systemctl_show" | head -30
+    echo "=== V3713 BTRFS SNAPSHOT ===" && rg -n '_btrfs_pre_snapshot' "$F" | head -10
+    echo "=== V3713 GKEYFILE ESCAPE ===" && rg -n '_gkeyfile_escape' "$F" | head -10
+    echo "=== V3713 VERIFY SUMMARY ===" && _py_extract "$F" "_verify_summary" | rg 'VERIFY_MODE\|set -l' | head -10
+    echo "=== V3713 DEAD FUNCS ===" && rg -n '_read_installed\|validate_systemd_unit\|validate_fish_script\|passthrough' "$F" | head -5
+    echo "=== V3713 KCONFIG CLEANUP ===" && _py_extract "$F" "_do_cleanup" | rg '_KCONFIG_DATA' | head -5
+    echo "=== V3713 EXIT_USAGE ===" && rg -n 'exit 2\b' "$F" | head -10
+    echo "=== V3713 CHECK JOB4 FILE ===" && rg -n 'exp_svcs\|mask_units' "$F" | head -10
+    echo "=== V3713 TRACKED TMPDIR CLEANUP ===" && _py_extract "$F" "_do_cleanup" | rg 'test -d\|rm -rf\|test -f' | head -10
     echo "=== V371 KERNEL GATE ===" && _py_extract "$F" "check_kernel_version" | rg 'return' | head -5
     echo "=== V371 NPROC GUARD ===" && rg -n 'nproc_val\|nproc.*lt 8\|sequentially' "$F" | head -10
     echo "=== V371 SSH USER VERIFY ===" && rg -n 'systemd-analyze.*user.*verify\|--user verify' "$F" | head -10
@@ -747,7 +747,7 @@ for i, line in enumerate(lines, 1):
 for x in issues: print(x)
 print(f'Total: {len(issues)} scope shadow(s)')
 " "$F" 2>&1 | head -30
-  ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" &
+  ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
   # ── GROUP E: P13 gap analysis (race/error/edge tracing) ──
   # DEPENDS ON GROUP D at analysis time (not collection time):
@@ -755,7 +755,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
   # BOOT_SANITY, etc.) are collected in GROUP D's p14.txt.
   # GROUP E collects independent data to p13.txt; both files are
   # cross-referenced during STEP 2 ANALYZE.
-  (
+  ( (
     echo "=== TMPFILE LIFECYCLE ===" && python3 -c "
 import re, sys
 lines = open(sys.argv[1]).readlines()
@@ -799,15 +799,12 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
     echo "=== LOG BACKUP PATHS ===" && rg -n 'set -g.*ry-install' "$F" | head -10
     echo "=== XDG USAGE ===" && rg -n 'XDG_' "$F" | head -10
     echo "=== SUDO KEEPALIVE ===" && rg -n 'SUDO_KEEPALIVE' "$F" | head -10
-    echo "=== DIAG HELPER RETURN PATHS ===" && for fn in _diag_info _diag_services _diag_hardware _diag_network _diag_storage _diag_config; do
-      echo "--- $fn ---" && _py_extract "$F" "$fn" | rg 'return' | head -5
-    done 2>&1
     echo "=== LOGS HELPER RETURN PATHS ===" && for fn in _logs_file_ops _logs_journal; do
       echo "--- $fn ---" && _py_extract "$F" "$fn" | rg 'return' | head -5
     done 2>&1
     echo "=== PARALLEL BARE SUDO ===" && rg -n 'sudo ' "$F" | rg -v '_run|_ensure_sudo|#|sudo true|sudo -k|SUDO_KEEPALIVE|keepalive' | head -20
     echo "=== PARALLEL CHILD SOURCE ===" && rg -n 'source.*funcs\|functions.*needed' "$F" | head -10
-  ) > "$D/p13.txt" 2>&1; echo "GROUP_E_EXIT=$?" >> "$D/p13.txt" &
+  ) > "$D/p13.txt" 2>&1; echo "GROUP_E_EXIT=$?" >> "$D/p13.txt" ) &
 
   wait
 
@@ -1290,15 +1287,14 @@ STEP 2: ANALYZE ON DISK
                MANAGED_FILE_COUNT=17. get_file_content case matches.
        [ ] 181. verify_static: 4 _chk_grep checks. verify_runtime:
                reads /proc/sys/ for all 4 keys with cat -- 2>/dev/null.
-       [ ] 182. do_diagnose Sysctl Tuning section. _install_configure:
-               sysctl --system reload gated by file check + _ask.
-               do_install_file: string match sysctl.d → reload.
+       [ ] 182. _install_configure: sysctl --system reload gated by file
+               check + _ask. do_install_file: string match sysctl.d → reload.
 
   14.6 AUDIT FIXES (v3.1.1–v3.2.10)
        [ ] 183. _install_finalize returns 1 when INSTALL_HAD_ERRORS=true.
        [ ] 184. cat -- terminators in _run capture paths.
-       [ ] 185. --description + comment coverage: function count = 92 =
-               description count. 18 section headers.
+       [ ] 185. --description + comment coverage: function count = 80 =
+               description count. 17 section markers (── style).
 
   14.7 ORPHAN LOG + RACE FIXES (v3.2.2–v3.2.3)
        [ ] 186. Orphan log cleanup: every exit 2 preceded by LOG_FILE guard.
@@ -1319,8 +1315,10 @@ STEP 2: ANALYZE ON DISK
                boot entry refs existing kernel. Failure →
                INSTALL_HAD_ERRORS + "DO NOT REBOOT".
 
-  14.9 FEATURE EXTRACTION (v3.2.5)
-       [ ] 192. _gather_temps: sysfs hwmon direct reads, no lm_sensors fork.
+  14.9 FEATURE EXTRACTION (v3.2.5–v3.7.13)
+       [ ] 192. _btrfs_pre_snapshot: read-only btrfs snapshot of / before
+               install. Non-fatal on failure. Uses /.snapshots or
+               /.ry-snapshots. Name: ry-install-pre-<ver>-<ts>.
        [ ] 193. Dead globals removed: MODULES_LOAD, _LOCK_METHOD,
                _GPU_BUSY_PCT → 0 hits.
                find -mindepth 1 (not glob). _log: direct date.
@@ -1328,15 +1326,14 @@ STEP 2: ANALYZE ON DISK
                end-of-options marker in verify_runtime cmdline check.
 
   14.10 CODE QUALITY (v3.2.6–v3.2.10)
-       [ ] 195. Section headers: 18 `# ── Description ──` markers.
-       [ ] 196. Function comment coverage: ≥81/92 with nearby # comment.
-       [ ] 197. `command` prefix on ≥74 coreutils calls. No bare coreutils
+       [ ] 195. Section headers: 17 `# ── Description ──` markers.
+       [ ] 196. Function comment coverage: 80/80 with nearby # comment.
+       [ ] 197. `command` prefix on ≥126 coreutils calls. No bare coreutils
                outside sudo context.
        [ ] 198. --argument-names on ≥20 functions.
 
   14.11 SCOPING + ROLLBACK (v3.2.9–v3.2.10)
-       [ ] 199. In-function set -g: ~200 (intentional VERIFY_*/flag globals
-               + _DIAG_ISSUES/_DIAG_CHECKS counter globals).
+       [ ] 199. In-function set -g: ~134 (intentional VERIFY_*/flag globals).
 
   14.12 LOGGING + VERIFICATION (v3.2.8–v3.2.10)
        [ ] 200. _log START/END markers on 7 modes. rg START → 7, END → 8.
@@ -1350,9 +1347,9 @@ STEP 2: ANALYZE ON DISK
                after atomic mv. Failure → INSTALL_HAD_ERRORS.
        [ ] 203. WiFi credentials: set before use, erased after iwd config.
                Not stored as globals beyond pipeline.
-       [ ] 204. Unconditional log rotation for all modes. ~704 vars have
-               explicit set -l. ~330 bare set for cross-block vars.
-               _run wraps ≥69 distinct sudo commands for logging.
+       [ ] 204. Unconditional log rotation for all modes. ~616 vars have
+               explicit set -l. ~313 bare set for cross-block vars.
+               _run wraps ≥83 distinct sudo commands for logging.
 
   14.13 STDOUT + SECURITY (v3.2.10)
        [ ] 205. All UI output → stderr. Intentional stdout: return-value
@@ -1393,9 +1390,9 @@ STEP 2: ANALYZE ON DISK
                install_file (_cur_content),
                _install_collect_wifi (wlan_iface, wifi_pass),
                _install_finalize (reload_wait, wifi_retry).
-       [ ] 213. In-function set -g count: ~200 (intentional VERIFY_*/flag/
-               _DIAG counter globals). Bare set count: ~330 (cross-block
-               updaters). set -l count: ~704. Grand total scope fixes: 186.
+       [ ] 213. In-function set -g count: ~134 (intentional VERIFY_*/flag
+               globals). Bare set count: ~313 (cross-block
+               updaters). set -l count: ~616. Grand total scope fixes: 186.
        [ ] 214. _analyze_log total_step_s: bare set (not set -g on local).
                Step timing total correctly computed. (F-14, v3.3.1)
 
@@ -1406,21 +1403,17 @@ STEP 2: ANALYZE ON DISK
        in v3.4.1: reads installed file, gracefully skips on dry-run.
        Verified via check 229 (Phase 15.11).
 
-  14.17 DECOMPOSITION + CLEANUP (v3.5.0)
-       [ ] 254. do_diagnose decomposition: 6 helpers (_diag_info,
-               _diag_services, _diag_hardware, _diag_network,
-               _diag_storage, _diag_config) extracted. Orchestrator
-               calls _diag_info first (no counters), then initializes
-               _DIAG_ISSUES=0 and _DIAG_CHECKS=0 BEFORE calling the
-               5 counter-using helpers. All 6 helpers have --description.
-       [ ] 255. _DIAG_ISSUES/_DIAG_CHECKS: set -g in helpers, initialized
-               in do_diagnose orchestrator. Final summary reads both.
-               No stale inline counter patterns remain.
+  14.17 DECOMPOSITION + CLEANUP (v3.5.0–v3.7.13)
+       [ ] 254. _gkeyfile_escape: consolidated WiFi GKeyFile escaping
+               (backslash, semicolon, leading #, leading/trailing space).
+               NM write path calls helper instead of inline escaping.
+       [ ] 255. Dead function removal (v3.7.13): _read_installed,
+               validate_systemd_unit, validate_fish_script → 0 hits.
+               _run --passthrough dead code path → 0 hits.
        [ ] 256. do_logs decomposition: _logs_file_ops (analyze/last/list/all;
                list delegates to _logs_list) and _logs_journal
                (system/gpu/wifi/boot/audio/usb/kernel) extracted.
-               do_logs dispatcher: _logs_file_ops → explicit return $status;
-               _logs_journal → implicit return (no explicit return in body).
+               do_logs dispatcher: both branches return $status explicitly.
        [ ] 257. `path basename` regression: 0 hits. Replaced with
                `string replace -r '.*/' ''` for Fish 3.3+ compat.
        [ ] 258. do_logs fuzzy-match: service-not-found branch does 3-char
@@ -1434,7 +1427,7 @@ STEP 2: ANALYZE ON DISK
                state-changing sudo calls wrapped in _run for audit trail.
        [ ] 261. set -l next_arg in --logs arg parser (not bare set).
                Consistent with --diff/--install-file arg parsers.
-       [ ] 262. Inline comment density: all 33 functions >50 lines have
+       [ ] 262. Inline comment density: all 26 functions >50 lines have
                ≥2 inline comments (v3.5.0 decomposition reduced count from
                34 to 27; v3.7.x batch/parallel additions grew it to 33).
                27 comments added in v3.5.0 to 19 previously under-documented
@@ -1483,14 +1476,15 @@ STEP 2: ANALYZE ON DISK
                dirs. _do_cleanup iterates all paths with rm -rf, then
                set --erase _TRACKED_TMPFILES. 0 leaked tmpfiles after
                cleanup on every exit path (normal, signal, error).
-       [ ] 274. Functions serialization (B-4 do_diagnose): needed_funcs
-               list covers all functions transitively called by 5 parallel
-               _diag_* children plus _ask (isatty guard). Source target is
-               functions-only file (no top-level side effects). rg 'needed_funcs'
-               and verify list includes _msg, _log, _run, _chk_grep, etc.
-       [ ] 275. Parallel env export lifecycle (B-4): set -gx for ~14 profile
-               globals before fork, set --erase matching globals after wait.
-               Export count = unexport count. No leaked exports.
+       [ ] 274. _verify_summary counter integrity: VERIFY_FAIL/WARN/OK
+               counters snapshotted into locals before _fail/_warn/_ok call
+               to prevent N+1 off-by-one. VERIFY_MODE=false before summary
+               emission so _msg increment is skipped. CI line, stderr, and
+               JSONL footer all agree on counts.
+       [ ] 275. do_check Job 4 file-based serialization: EXPECTED_SERVICES
+               and MASK read from $result_dir files instead of interpolated
+               into fish -c string. Prevents breakage from external profiles
+               with quotes/backslashes in service names.
        [ ] 276. string join0 | xargs -0 (B-9 log rotation): null-terminated
                pipeline, -- before args in both string join0 and xargs.
                Requires Fish 3.4+ (already gated by check 270).
@@ -1514,10 +1508,11 @@ STEP 2: ANALYZE ON DISK
                "Updating bootloader". rg count: 20 PROGRESS_STEPS = 20
                _progress calls.
        [ ] 281. B-5 do_test_all nested parallelism guard: on systems with
-               < 8 cores (nproc), all 15 read-only modes run sequentially
-               instead of parallel forking. Prevents oversubscription from
-               nested parallel children (verify-static: 17, check: 4,
-               diagnose: 5, diff: 17 forked jobs each).
+               < 8 cores (nproc), all 14 read-only modes run sequentially
+               instead of parallel forking. 8-15 cores: batch throttle in
+               groups of nproc with wait between batches. 16+ cores: full
+               parallel. Prevents oversubscription from nested parallel
+               children (verify-static: 17, check: 4, diff: 17 forked jobs).
        [ ] 282. B-1 validate_configs ssh-agent user unit: systemd-analyze
                --user verify for ssh-agent.service. Previously ran without
                --user flag (system scope verify on user unit).
@@ -1568,9 +1563,9 @@ STEP 2: ANALYZE ON DISK
 
   15.7 VARIABLE INITIALIZATION
        [ ] 222. Every numeric var in test has prior set -l with numeric
-               value. Init count ≥ test count for all 35 local vars.
-               Fish builtins ($status) and script globals (MAX_LOGS,
-               _DIAG_ISSUES) excluded — always initialized by runtime.
+               value. Init count ≥ test count for all 32 local vars.
+               Fish builtins ($status) and script globals (MAX_LOGS)
+               excluded — always initialized by runtime.
        [ ] 223. Word splitting N/A in fish. Unquoted $var in test is safe.
 
   15.8 PATH SAFETY
@@ -1597,8 +1592,8 @@ STEP 2: ANALYZE ON DISK
        [ ] 230. do_test_all tmpfile cleanup: rm-f on both branches.
 
   15.12 GLOBAL STATE CONTRACTS
-       [ ] 231. INSTALL_HAD_ERRORS: initialized false, set true in 42
-               locations (50 total references). Never reset mid-pipeline.
+       [ ] 231. INSTALL_HAD_ERRORS: initialized false, set true in 33
+               locations (41 total references). Never reset mid-pipeline.
                Only mutated within install pipeline.
 
   15.13 PATTERN CORRECTNESS
@@ -1640,7 +1635,6 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   # NON-TARGET HARDWARE: These modes return 1 on audit containers
   # (missing hardware/configs). Do NOT flag as bugs:
   #   --verify-runtime -> 1 (no managed files)
-  #   --diagnose -> 1 (no hardware sensors)
   # Flag as bugs ONLY if exit code differs from expected on target.
 
   D=/home/claude/audit-data/runtime
@@ -1657,7 +1651,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   # Group B: exit code matrix
   (
     for mode in \
-      "--help" "-h" "--version" "-v" "--bogus" "--fix" "--stress" \
+      "--help" "-h" "--version" "-v" "--bogus" "--fix" \
       "--diff --lint"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
@@ -1665,7 +1659,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   (
     for mode in \
       "--verify-static" "--verify-runtime" "--lint" "--test-all" \
-      "--completions" "--diff" "--diagnose" "--check" \
+      "--completions" "--diff" "--check" \
       "--install-file" "--install-file /etc/kernel/cmdline --dry-run"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
@@ -1681,8 +1675,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   (
     for mode in \
       "--dry-run" "-n" "--all --dry-run" "-a --dry-run" \
-      "--verbose --dry-run" "-V --dry-run" "--force --dry-run" "-f --dry-run" \
-      "--all --diagnose --dry-run"; do
+      "--verbose --dry-run" "-V --dry-run" "--force --dry-run" "-f --dry-run"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b4.txt" &
@@ -1700,7 +1693,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     timeout "$RUNTIME_TIMEOUT" fish "$S" --lint >"$D/lint-out.txt" 2>"$D/lint-err.txt"
   ) &
   (
-    # Extended timeout for test-all (spawns 20 fish subprocesses); capture stderr for analysis
+    # Extended timeout for test-all (spawns 19 fish subprocesses); capture stderr for analysis
     timeout 90 fish "$S" --test-all >/dev/null 2>"$D/test-all-err.txt"
   ) &
   wait
@@ -1724,7 +1717,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   cat "$D"/exit-d-sigpipe.txt >> "$D/exit-codes.txt" 2>/dev/null
 
   # Group E: NO_COLOR enforcement
-  for mode in "--lint" "--diff" "--dry-run" "--diagnose" "--logs list"; do
+  for mode in "--lint" "--diff" "--dry-run" "--logs list"; do
     safename=$(echo "$mode" | tr ' ' '-')
     NO_COLOR=1 timeout "$RUNTIME_TIMEOUT" fish "$S" $mode 2>"$D/nocolor-$safename.txt" >/dev/null &
   done
@@ -1759,10 +1752,9 @@ STEP 3: CHECKLIST
   12.2 EXIT CODE MATRIX
        [ ] 243. 0: --help, -h, --version, -v, --lint, --completions,
                --logs list/system, --dry-run, -n,
-               -a --dry-run, --all --diagnose --dry-run
+               -a --dry-run
                NON-TARGET: --test-all may return 1, --check returns 10
-               (drift), --verify-* and --diagnose return 1 (missing
-               configs/hardware). Always examine stderr to distinguish
+               (drift), --verify-* returns 1 (missing configs). Always examine stderr to distinguish
                expected non-target failures from real bugs.
        [ ] 244. 2: invalid flag, conflicts, modifier-only,
                --install-file no path, --diff relative/path
