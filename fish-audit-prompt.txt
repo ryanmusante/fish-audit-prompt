@@ -217,6 +217,15 @@ KEY LESSONS (sorted by check number):
            Removing word boundary on cmd (using substring match) lets
            'set -l rm_path' be correctly filtered as variable
            assignment, not bare coreutil usage.
+    GROUP_D  rg alternation in single-quoted bash strings: \| is
+    GROUP_E  literal pipe, not alternation. Use unescaped | for rg
+             alternation inside single quotes. 12 patterns fixed
+             across GROUP D and GROUP E that matched literal pipe
+             instead of alternatives. Related: STRING OPS `rg -v
+             -- '--'` matched any --flag (false negatives); SORT
+             LOCALE `rg -v 'sort -'` hid sort-with-options; TMPFILE
+             LIFECYCLE r'^function (\w+) ' missed bare declarations;
+             IN-FUNCTION GLOBALS 'set -g ' missed set -ga/set -gx.
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -427,7 +436,7 @@ for line in lines:
   ( (
     echo "=== BASHISMS ===" && rg -n '\$\(|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | head -30
     echo "=== FISH_INDENT ===" && if command -v fish_indent >/dev/null 2>&1; then fish_indent --check "$F" 2>&1; echo "exit: $?"; else echo "UNAVAILABLE (fish_indent not found — check 216 DEFERRED)"; fi
-    echo "=== STRING OPS ===" && rg -n 'string (match|replace|split|join|trim)' "$F" | rg -v -- '--' | head -30
+    echo "=== STRING OPS ===" && rg -n 'string (match|replace|split|join|trim)' "$F" | rg -v ' -- ' | head -30
     echo "=== ARGPARSE ===" && rg -n 'argparse|argv' "$F" | head -30
     echo "=== ROUTING ===" && rg -n '>&2|>/dev/null|stderr|stdout' "$F" | head -50
     echo "=== NO_COLOR ===" && rg -n 'NO_COLOR|isatty|tput|test -t' "$F" | head -20
@@ -630,7 +639,7 @@ for line in lines:
     elif s == 'end':
         depth -= 1
         if depth == 0: fn = None; continue
-    if fn and 'set -g ' in line: count += 1
+    if fn and re.search(r'set -g[ax]? ', line): count += 1
 print(f'{count} in-function set -g')
 " "$F" 2>&1
     echo "=== SHA256 VERIFY ===" && rg -n 'sha256sum' "$F" | head -10
@@ -647,7 +656,7 @@ print(f'{count} in-function set -g')
     echo "=== MODE_LABEL DISPATCH ===" && rg -n 'set.*mode_label ' "$F" | head -10
     echo "=== LOGS DECOMPOSITION ===" && rg -n '^function _logs_file_ops|^function _logs_journal|^function _logs_list|^function do_logs ' "$F" | head -10
     echo "=== LOGS RETURN STATUS ===" && rg -n 'return \$status' "$F" | head -10
-    echo "=== LOGS FUZZY MATCH ===" && rg -n 'fuzzy\|Did you mean\|_t_prefix\|proximity' "$F" | head -10
+    echo "=== LOGS FUZZY MATCH ===" && rg -n 'fuzzy|Did you mean|_t_prefix|proximity' "$F" | head -10
     echo "=== PATH BASENAME REGRESSION ===" && rg -n 'path basename' "$F" | head -5
     echo "=== BARE SUDO NMCLI ===" && rg -n 'sudo nmcli' "$F" | rg -v '_run|#' | head -10
     echo "=== V351 HAS_LOCK REGRESSION ===" && rg -n '_has_lock' "$F" | head -5
@@ -663,23 +672,23 @@ print(f'{count} in-function set -g')
     echo "=== TRACKED TMPFILES ===" && rg -n '_TRACKED_TMPFILES' "$F" | head -20
     echo "=== FUNCTIONS SERIALIZATION ===" && rg -n 'needed_funcs|funcs_file' "$F" | head -10
     echo "=== STRING JOIN0 ===" && rg -n 'string join0' "$F" | head -10
-    echo "=== PARALLEL CHILD TMPDIR ===" && rg -n 'test_dir\|val_dir\|diff_batch_dir' "$F" | head -20
+    echo "=== PARALLEL CHILD TMPDIR ===" && rg -n 'test_dir|val_dir|diff_batch_dir' "$F" | head -20
     echo "=== PARSE SYSTEMCTL BODY ===" && _py_extract "$F" "_parse_systemctl_show" | head -30
     echo "=== V3713 BTRFS SNAPSHOT ===" && rg -n '_btrfs_pre_snapshot' "$F" | head -10
     echo "=== V3713 GKEYFILE ESCAPE ===" && rg -n '_gkeyfile_escape' "$F" | head -10
-    echo "=== V3713 VERIFY SUMMARY ===" && _py_extract "$F" "_verify_summary" | rg 'VERIFY_MODE\|set -l' | head -10
-    echo "=== V3713 DEAD FUNCS ===" && rg -n '_read_installed\|validate_systemd_unit\|validate_fish_script\|passthrough' "$F" | head -5
+    echo "=== V3713 VERIFY SUMMARY ===" && _py_extract "$F" "_verify_summary" | rg 'VERIFY_MODE|set -l' | head -10
+    echo "=== V3713 DEAD FUNCS ===" && rg -n '_read_installed|validate_systemd_unit|validate_fish_script|passthrough' "$F" | head -5
     echo "=== V3713 KCONFIG CLEANUP ===" && _py_extract "$F" "_do_cleanup" | rg '_KCONFIG_DATA' | head -5
     echo "=== V3713 EXIT_USAGE ===" && rg -n 'exit 2\b' "$F" | head -10
-    echo "=== V3713 CHECK JOB4 FILE ===" && rg -n 'exp_svcs\|mask_units' "$F" | head -10
-    echo "=== V3713 TRACKED TMPDIR CLEANUP ===" && _py_extract "$F" "_do_cleanup" | rg 'test -d\|rm -rf\|test -f' | head -10
+    echo "=== V3713 CHECK JOB4 FILE ===" && rg -n 'exp_svcs|mask_units' "$F" | head -10
+    echo "=== V3713 TRACKED TMPDIR CLEANUP ===" && _py_extract "$F" "_do_cleanup" | rg 'test -d|rm -rf|test -f' | head -10
     echo "=== V371 KERNEL GATE ===" && _py_extract "$F" "check_kernel_version" | rg 'return' | head -5
-    echo "=== V371 NPROC GUARD ===" && rg -n 'nproc_val\|nproc.*lt 8\|sequentially' "$F" | head -10
-    echo "=== V371 SSH USER VERIFY ===" && rg -n 'systemd-analyze.*user.*verify\|--user verify' "$F" | head -10
-    echo "=== V371 MANIFEST GATE ===" && rg -n 'MANIFEST_SKIP\|EXIT_BOOT_CRIT.*manifest' "$F" | head -5
+    echo "=== V371 NPROC GUARD ===" && rg -n 'nproc_val|nproc.*lt 8|sequentially' "$F" | head -10
+    echo "=== V371 SSH USER VERIFY ===" && rg -n 'systemd-analyze.*user.*verify|--user verify' "$F" | head -10
+    echo "=== V371 MANIFEST GATE ===" && rg -n 'MANIFEST_SKIP|EXIT_BOOT_CRIT.*manifest' "$F" | head -5
     echo "=== V371 SYU ORDER ===" && rg -n 'SYSTEM_UPGRADED' "$F" | head -10
-    echo "=== V371 FLOCK ROTATION ===" && rg -n 'flock.*xargs\|flock.*_log_base' "$F" | head -5
-    echo "=== V371 BATCH FALLBACK ===" && rg -n 'Batch enable failed\|retrying individually' "$F" | head -5
+    echo "=== V371 FLOCK ROTATION ===" && rg -n 'flock.*xargs|flock.*_log_base' "$F" | head -5
+    echo "=== V371 BATCH FALLBACK ===" && rg -n 'Batch enable failed|retrying individually' "$F" | head -5
     echo "=== V371 DEAD IDX ===" && _py_extract "$F" "do_check" | rg 'idx 0' | head -5
     echo "=== INLINE COMMENT DENSITY ===" && python3 -c "
 import re, sys
@@ -764,7 +773,7 @@ block_re = re.compile(r'^\s*(function |if |for |while |switch |begin\b)')
 for line in lines:
     s = line.strip()
     if depth == 0:
-        m = re.match(r'^function (\w+) ', line)
+        m = re.match(r'^function (\w+)( |$)', line)
         if m: fn = m.group(1); depth = 1; body = []; continue
     else:
         if not s.startswith('else') and block_re.match(line): depth += 1
@@ -780,7 +789,7 @@ for line in lines:
     echo "=== DRY GATE ===" && rg -n 'sudo |pacman |systemctl |mv |tee ' "$F" | rg -v "DRY|$MSG_SKIP|#|echo|rg|string|printf" | head -30
     echo "=== LOCK REGRESSION ===" && rg -n 'exec 9|_LOCK_METHOD.*flock' "$F" | head -5
     echo "=== LOCK TRACE ===" && rg -n 'mkdir.*LOCK|rmdir.*LOCK|verify_pid' "$F" | head -20
-    echo "=== SORT LOCALE ===" && rg -n 'sort' "$F" | rg -v '#|sort -|LC_ALL' | head -20
+    echo "=== SORT LOCALE ===" && rg -n 'sort' "$F" | rg -v '#|LC_ALL' | head -20
     echo "=== SIGPIPE BODY ===" && _py_extract "$F" "_cleanup_pipe" | head -20
     echo "=== DOTFILE GLOB ===" && rg -n 'rm -rf.*\*' "$F" | rg -v '#' | head -5
     echo "=== BARE COREUTILS ===" && python3 -c "
@@ -803,7 +812,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
       echo "--- $fn ---" && _py_extract "$F" "$fn" | rg 'return' | head -5
     done 2>&1
     echo "=== PARALLEL BARE SUDO ===" && rg -n 'sudo ' "$F" | rg -v '_run|_ensure_sudo|#|sudo true|sudo -k|SUDO_KEEPALIVE|keepalive' | head -20
-    echo "=== PARALLEL CHILD SOURCE ===" && rg -n 'source.*funcs\|functions.*needed' "$F" | head -10
+    echo "=== PARALLEL CHILD SOURCE ===" && rg -n 'source.*funcs|functions.*needed' "$F" | head -10
   ) > "$D/p13.txt" 2>&1; echo "GROUP_E_EXIT=$?" >> "$D/p13.txt" ) &
 
   wait
@@ -857,7 +866,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
       : "${nextnum:=$(wc -l < "$f")}"
       content_lines=$((nextnum - linenum - 1))
       if [ "$content_lines" -le 0 ]; then
-        echo "[INFO] EMPTY SECTION: $section in $(basename "$f") — rg may have failed silently" >> "$O"
+        echo "[INFO] EMPTY SECTION: $section in $(basename "$f") — rg returned 0 results or section truncated by SIZE GATE" >> "$O"
       fi
     done < <(grep '^=== .* ===$' "$f")
   done

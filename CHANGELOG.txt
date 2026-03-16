@@ -6,6 +6,7 @@ v3.7.13 (2026-03-16): Sync with ry-install v3.7.13. Major update.
   3.7.x). README badges added. 0 new checks (stays at 285).
   6 data collection patterns removed, 10 added. 14 metric updates.
   4 checks rewritten. 2 checks updated. 1 execution flow fix.
+  6 data collection bugs fixed (F6-F11). 1 audit infra lesson added.
 
   F1: [MED] PASS 1 data collection groups A1–E claimed parallel execution
       but ran serially. Pattern `(subshell) > file 2>&1; echo EXIT >> file &`
@@ -58,6 +59,38 @@ v3.7.13 (2026-03-16): Sync with ry-install v3.7.13. Major update.
   F5: [LOW] Check 182 updated: removed do_diagnose Sysctl Tuning
       reference (function removed). Check 192 repurposed from
       _gather_temps to _btrfs_pre_snapshot.
+  F6: [HIGH] 12 rg patterns in GROUP D and GROUP E used \| (literal
+      pipe) instead of | (alternation) in single-quoted bash strings.
+      All 12 searched for literal pipe characters, producing 0 matches
+      on every audit run. Affected sections: LOGS FUZZY MATCH,
+      PARALLEL CHILD TMPDIR, V3713 VERIFY SUMMARY, V3713 DEAD FUNCS,
+      V3713 CHECK JOB4 FILE, V3713 TRACKED TMPDIR CLEANUP, V371
+      NPROC GUARD, V371 SSH USER VERIFY, V371 MANIFEST GATE, V371
+      FLOCK ROTATION, V371 BATCH FALLBACK, PARALLEL CHILD SOURCE.
+      Fixed: removed backslash before | in all 12 patterns.
+  F7: [MED] STRING OPS filter `rg -v -- '--'` removed all lines
+      containing any --flag, causing false negatives when a string
+      command used --option but lacked the -- end-of-options separator.
+      Fixed: `rg -v ' -- '` (space-delimited match).
+  F8: [MED] IN-FUNCTION GLOBALS substring match `'set -g '` missed
+      set -ga (append) and set -gx (export) patterns, underreporting
+      global mutation count for check 199.
+      Fixed: `re.search(r'set -g[ax]? ', line)`.
+  F9: [MED] TMPFILE LIFECYCLE extractor regex r'^function (\w+) '
+      required trailing space after function name, missing bare
+      declarations without args or description. Same bug class as
+      the _py_extract lesson (GROUP_D line 209-211) but unfixed in
+      this extractor. Check 219 tmpfile counts incomplete.
+      Fixed: r'^function (\w+)( |$)'.
+  F10:[LOW] SORT LOCALE filter `rg -v 'sort -'` excluded all sort
+      invocations with options, hiding commands needing LC_ALL=C.
+      Fixed: `rg -v '#|LC_ALL'` (only exclude comments and safe lines).
+  F11:[LOW] EMPTY SECTION GUARD message said "rg may have failed
+      silently" but sections could also be empty due to SIZE GATE
+      truncation. Misleading during triage.
+      Fixed: "rg returned 0 results or section truncated by SIZE GATE".
+  Lesson: GROUP_D/GROUP_E — rg alternation in single-quoted bash
+      strings: \| is literal pipe. Use unescaped | for alternation.
 
 v31.2.1 — Changes from v31.2.0: 5 fixes from exhaustive self-audit.
   0 new checks (stays at 285).
