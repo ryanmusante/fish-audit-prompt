@@ -1,10 +1,10 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.7.23-blue?style=flat-square)
+![version](https://img.shields.io/badge/version-3.7.24-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
 
-Derived from `ry-install.fish` v3.7.23 · 293 checks across 15 phases
+Derived from `ry-install.fish` v3.7.23 · 293 checks across 15 phases · Prompt v3.7.24
 
 ## Overview
 
@@ -22,7 +22,7 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 
 ## Audit Structure
 
-**PASS 1 — GATHER + ANALYZE** (phases 1–11, 13–15): parallel data collection via 5 subshell groups, python3 extractors, and rg pattern matching. Raw data to disk, findings appended, summary to context.
+**PASS 1 — GATHER + ANALYZE** (phases 1–11, 13–15): parallel data collection via 7 subshell groups, python3 extractors, and rg pattern matching. Raw data to disk, findings appended, summary to context.
 
 **PASS 2 — RUNTIME** (phase 12): fish execution tests covering stdout/stderr separation, exit code matrix, NO_COLOR enforcement, dry-run filesystem safety, and internal consistency (lint, test-all).
 
@@ -52,7 +52,7 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 
 | File | Description |
 |------|-------------|
-| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.23) |
+| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.24) |
 | `CHANGELOG.txt` | Version history with per-finding details |
 | `README.md` | This file |
 
@@ -67,6 +67,7 @@ Each audit produces:
 
 | Version | Checks | ry-install | Summary |
 |---------|--------|------------|---------|
+| v3.7.24 | 293 | v3.7.23 | 2 rg pattern fixes (AND-OR escaped pipe), README group count fix |
 | v3.7.23 | 293 | v3.7.23 | +8 checks, 16 new GROUP D patterns, 5 new infra lessons |
 | v3.7.13 | 285 | v3.7.13 | Unified versioning, 6 data collection bug fixes |
 | v25–v31.2.1 | 254–285 | v2.x–v3.7.1 | 22 releases |

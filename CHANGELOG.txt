@@ -1,6 +1,57 @@
 FISH AUDIT PROMPT — CHANGELOG
 ==============================
 
+v3.7.24 (2026-03-17): Audit prompt self-review. 0 new checks (293 → 293).
+  3 findings from external analysis, 2 confirmed bugs + 1 doc fix.
+  5 initial findings withdrawn after verification (false positives).
+
+  F-1: [MED] V3723 AND-OR STYLE rg pattern (GROUP D line 740): used
+       \| (literal pipe in single-quoted bash) instead of | (rg
+       alternation). Pattern '; and \|; or ' matched literal string
+       "; and |; or " instead of "; and " OR "; or ". Always returned
+       0 (false negative). Same bug class as F6 (v3.7.13) — 12
+       patterns were fixed then but this one was introduced in v3.7.23.
+       Fixed: '; and |; or ' (unescaped pipe for alternation).
+
+  F-2: [HIGH] V3723 BASH AND-OR rg pattern (GROUP D line 741): regex
+       '&&\|||' parsed as alternatives: "&&|" (literal), "" (empty),
+       "" (empty). Empty alternatives match every line regardless of
+       content. After rg -v filter + head -20, produced 20 arbitrary
+       non-comment lines (false positives). Intended: match literal
+       && or literal ||. Fixed: '&&|\|\|' (escaped pipes for literal
+       || in second alternative).
+
+  F-3: [LOW] README.md line 25: claimed "5 subshell groups" but PASS 1
+       data collection has 7 parallel subshell groups (A1, A2, B, C1,
+       C2, D, E). Fixed: "7 subshell groups".
+
+  Withdrawn findings (verified not bugs):
+    - _py_extract fish_indent dependency: analysis is sequential;
+      prompt correctly instructs check 215 verification at analysis
+      time, not collection time. Data collection parallelism is safe.
+    - GROUP E → GROUP D dependency: documented in comments (lines
+      813-818), handled by post-wait file-size guards (lines 874-881),
+      and STEP 2 ANALYZE DEFERRED marking (lines 950-952).
+    - Scope shadow detector escape fragility: current code correct;
+      3-layer escapes verified against actual Python execution. Past
+      bugs (v28.4.0, v28.5.0, v31.2.0) documented as infra lessons.
+    - PCRE2 fallback not implemented: FALSE — all 3 rg -oP/-cP usages
+      (PROGRESS CALLED, ANSI escape, VERSION CONTENT) have || fallbacks
+      to grep -oP or rg -o + sed. All 2 rg -Un usages (CHMOD MV ORDER,
+      UNREACHABLE) have || awk fallbacks.
+    - head -N output caps heuristic: design choice with SIZE GATE
+      recovery manifests for truncated data. Not a defect.
+
+  New audit infra lesson (1):
+    GROUP_D  AND-OR STYLE/BASH AND-OR: v3.7.23 introduced 2 new rg
+             patterns with the same escaped-pipe bug class fixed in
+             F6 (v3.7.13). Root cause: the 12 patterns fixed in F6
+             were found by systematic grep; the v3.7.23 additions
+             were written after F6 was closed and not re-checked.
+             Prevention: after adding ANY single-quoted rg pattern
+             with |, verify: echo 'pattern' | cat -A shows unescaped
+             pipe at alternation points.
+
 v3.7.23 (2026-03-17): Sync with ry-install v3.7.23. +8 checks (285 → 293).
   Covers 10 patch versions (v3.7.14–v3.7.23) of ry-install fixes.
   16 new GROUP D data collection patterns. 2 new GROUP E patterns.

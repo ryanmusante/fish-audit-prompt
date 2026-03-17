@@ -1,6 +1,6 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.7.23
+Version: 3.7.24
 Derived from: ry-install.fish v3.7.23 audit (2026-03-17)
 Checks: 293
 Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.23)
@@ -737,8 +737,8 @@ print(f'{count} in-function set -g')
     echo "=== V3723 POST-WRITE SYMLINK ===" && rg -n 'test -L.*tmpfile' "$F" | head -10
     echo "=== V3723 INSTALL-FILE RELPATH ===" && rg -n 'install-file requires absolute' "$F" | head -5
     echo "=== V3723 DIFF BATCH ===" && rg -n 'diff_pids|diff.*batch' "$F" | head -10
-    echo "=== V3723 AND-OR STYLE ===" && rg -nc '; and \|; or ' "$F"
-    echo "=== V3723 BASH AND-OR ===" && rg -n '&&\|||' "$F" | rg -v '#|awk|/bin/sh|ExecStart|printf.*&&|echo.*&&' | head -20
+    echo "=== V3723 AND-OR STYLE ===" && rg -nc '; and |; or ' "$F"
+    echo "=== V3723 BASH AND-OR ===" && rg -n '&&|\|\|' "$F" | rg -v '#|awk|/bin/sh|ExecStart|printf.*&&|echo.*&&' | head -20
     echo "=== V3723 LOCK DOUBLE VERIFY ===" && rg -n 'verify_pid2|sleep 0.1' "$F" | head -10
     echo "=== V3723 MKTEMP DEGRADED ===" && rg -n '_MKTEMP_DEGRADED_WARNED' "$F" | head -5
     echo "=== V3723 RUN STDOUT CAP ===" && rg -n 'STDOUT_TRUNCATED' "$F" | head -5
