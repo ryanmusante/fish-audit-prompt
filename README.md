@@ -1,10 +1,10 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.7.13-blue?style=flat-square)
+![version](https://img.shields.io/badge/version-3.7.23-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
 
-Derived from `ry-install.fish` v3.7.13 · 285 checks across 15 phases
+Derived from `ry-install.fish` v3.7.23 · 293 checks across 15 phases
 
 ## Overview
 
@@ -14,11 +14,11 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 
 | Metric | Value |
 |--------|-------|
-| Total checks | 285 (270 static + 15 runtime) |
+| Total checks | 293 (278 static + 15 runtime) |
 | Phases | 15 (12 static + 1 runtime + 1 gap analysis + 1 version-specifics) |
 | Passes | 3 (gather+analyze, runtime, finalize) |
-| Key lessons | 50+ (indexed by check number) |
-| Audit infra lessons | 20+ (indexed by prompt section) |
+| Key lessons | 60+ (indexed by check number) |
+| Audit infra lessons | 40+ (indexed by prompt section) |
 
 ## Audit Structure
 
@@ -45,14 +45,14 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 | 11 | 14 | Testing & validation (preflight, config validation, dry-run) |
 | 12 | 15 | Runtime tests (stdout/stderr, exit codes, NO_COLOR, dry-run, lint) |
 | 13 | 5 | Gap analysis (race conditions, error paths, DRY gates, lock) |
-| 14 | 79 | v3.1.0–v3.7.13 specifics (KVER, helpers, sysctl, scope, decomposition, batch, parallel) |
+| 14 | 87 | v3.1.0–v3.7.23 specifics (KVER, helpers, sysctl, scope, decomposition, batch, parallel, injection safety) |
 | 15 | 19 | Supplemental deep checks (formatting, tmpfile tracing, flag sync) |
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.13) |
+| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.23) |
 | `CHANGELOG.txt` | Version history with per-finding details |
 | `README.md` | This file |
 
@@ -65,7 +65,13 @@ Each audit produces:
 
 ## Version History
 
-See [`CHANGELOG.txt`](CHANGELOG.txt) for the complete version history with per-finding details.
+| Version | Checks | ry-install | Summary |
+|---------|--------|------------|---------|
+| v3.7.23 | 293 | v3.7.23 | +8 checks, 16 new GROUP D patterns, 5 new infra lessons |
+| v3.7.13 | 285 | v3.7.13 | Unified versioning, 6 data collection bug fixes |
+| v25–v31.2.1 | 254–285 | v2.x–v3.7.1 | 22 releases |
+
+See [`CHANGELOG.txt`](CHANGELOG.txt) for per-finding details.
 
 ## Usage
 

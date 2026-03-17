@@ -1,121 +1,81 @@
 FISH AUDIT PROMPT — CHANGELOG
 ==============================
 
+v3.7.23 (2026-03-17): Sync with ry-install v3.7.23. +8 checks (285 → 293).
+  Covers 10 patch versions (v3.7.14–v3.7.23) of ry-install fixes.
+  16 new GROUP D data collection patterns. 2 new GROUP E patterns.
+  14 metric updates. 5 new audit infra lessons. 1 new Phase 14 section
+  (14.22). PASS 2 exit code matrix expanded. SPECIAL HANDLING updated.
+
+  New checks (289–296):
+    289: fish -c injection safety (0 double-quoted fish -c bodies)
+    290: Fish brace expansion (0 {$var} patterns)
+    291: Parallel status capture (0 bare echo $status)
+    292: Fish glob cancellation (0 count "$dir"/* patterns)
+    293: wait guard (count $pids before wait $pids)
+    294: Parallel worker cap (min(N, nproc) bounded)
+    295: install_file post-write symlink re-check (test -L after tee)
+    296: Deprecated test operators (0 test -o / test -a)
+
+  New data collection patterns (GROUP D):
+    V3723 FISH-C INJECTION, V3723 FISH-C SAFE, V3723 BRACE EXPANSION,
+    V3723 ECHO STATUS, V3723 TEST DEPRECATED, V3723 WAIT GUARD,
+    V3723 WAIT COUNT GUARD, V3723 WORKER CAP, V3723 POST-WRITE SYMLINK,
+    V3723 INSTALL-FILE RELPATH, V3723 DIFF BATCH, V3723 AND-OR STYLE,
+    V3723 BASH AND-OR, V3723 LOCK DOUBLE VERIFY, V3723 MKTEMP DEGRADED,
+    V3723 RUN STDOUT CAP
+
+  New data collection patterns (GROUP E):
+    PARALLEL ECHO STATUS, FISH-C DQ INJECTION
+
+  Metric updates (14):
+    - Functions: 80 → 80 (no change)
+    - set -l: ~616 → ~686 (check 204, 213)
+    - In-function set -g: ~134 → ~130 (checks 199, 213)
+    - _run wraps: ≥83 → ≥85 (check 204)
+    - command prefix: ≥126 → ≥138 (check 197)
+    - Comment coverage: 80/80 → 79/80 (check 196)
+    - START markers: 7 → 6 (check 200)
+    - END markers: 8 → 7 (check 200)
+    - Numeric vars: 32 → 36 (check 222); added actual_count,
+      mismatches, num_workers, start_idx, total_dsts; removed record_idx
+    - Check 220: added post-write symlink guard language
+    - Check 244: added --install-file relative/path → exit 2
+    - Check 248: added --install-file relative/path → exit 2
+    - PASS 2 Group B2: added --install-file relative/path test
+    - SPECIAL HANDLING: added 289-292, 296 to Expect 0 hits list
+
+  New audit infra lessons (5):
+    GROUP_D FISH-C INJECTION, GROUP_D BRACE EXPANSION,
+    GROUP_E PARALLEL STATUS, GROUP_E WAIT GUARD,
+    GROUP_D BRACE EXPANSION
+
+  New key lessons (8): 289–296 covering fish-c injection, brace
+    expansion, parallel status capture, glob cancellation, wait guard,
+    worker cap, post-write symlink, deprecated test operators.
+
 v3.7.13 (2026-03-16): Sync with ry-install v3.7.13. Major update.
   Unified version scheme (prompt was 31.x, now matches ry-install
-  3.7.x). README badges added. 0 new checks (stays at 285).
+  3.7.x). README badges added. 0 new checks (stayed at 285).
   6 data collection patterns removed, 10 added. 14 metric updates.
   4 checks rewritten. 2 checks updated. 1 execution flow fix.
   6 data collection bugs fixed (F6-F11). 1 audit infra lesson added.
 
-  F1: [MED] PASS 1 data collection groups A1–E claimed parallel execution
-      but ran serially. Pattern `(subshell) > file 2>&1; echo EXIT >> file &`
-      only backgrounds the echo — the subshell runs synchronously in the
-      foreground. All 7 groups (lines 429–810) affected. Confirmed by
-      timing test: two 1s subshells took ~2000ms instead of ~1000ms.
-      Fixed: wrapped each group in outer subshell:
-      `( (subshell) > file 2>&1; echo EXIT >> file ) &`
-      Verified fix runs parallel (~1000ms). All bash blocks pass `bash -n`.
-  F2: [MED] --diagnose mode and 9 associated functions removed in
-      ry-install v3.7.13 (~700 lines). Audit prompt updated:
-      - Removed 6 data collection patterns (SYSCTL DIAGNOSE, GATHER
-        TEMPS, DIAG DECOMPOSITION, DIAG RETURN, DIAG HELPER RETURN
-        PATHS, DIAG GLOBALS)
-      - Removed --diagnose and --stress from runtime exit code tests
-        (Groups B1, B2, B4) and NO_COLOR tests
-      - Removed NON-TARGET --diagnose comment from PASS 2
-      - Updated do_test_all subprocess count: 20 → 19
-      - Rewrote checks 254-255: was diagnose decomposition and
-        _DIAG_ISSUES/_DIAG_CHECKS globals; now _gkeyfile_escape
-        helper and dead function removal regression (v3.7.13)
-      - Rewrote checks 274-275: was diagnose functions serialization
-        and parallel env export; now _verify_summary counter integrity
-        and do_check Job 4 file-based serialization
-      - Updated check 281: removed diagnose forked jobs from nested
-        parallelism guard; added 3-tier throttle description
-        (nproc<8 sequential, 8-15 batch, 16+ full parallel)
-      - Updated check 256: both do_logs branches now return $status
-      - Updated key lessons 254-256 and GROUP_D/GROUP_A2 lessons
-  F3: [LOW] 14 stale inline metrics updated for v3.7.13:
-      - Functions: 92 → 80 (checks 185, 196)
-      - set -l: ~704 → ~616 (checks 204, 213)
-      - Bare set: ~330 → ~313 (checks 204, 213)
-      - In-function set -g: ~200 → ~134 (checks 199, 213)
-      - _run wraps: ≥69 → ≥83 (check 204)
-      - command prefix: ≥74 → ≥126 (check 197)
-      - Section markers: 18 → 17 (check 195)
-      - Comment coverage: ≥81/92 → 80/80 (check 196)
-      - Functions >50L: 33 → 26 (check 262)
-      - INSTALL_HAD_ERRORS: 42/50 → 33/41 (check 231)
-      - Numeric vars: 35 → 32 (check 222); removed verify_status,
-        missing, _bl_loaded from NUMERIC VAR INIT list
-      - do_test_all subprocess comment: 20 → 19
-  F4: [LOW] 10 new data collection patterns added to GROUP D:
-      V3713 BTRFS SNAPSHOT, V3713 GKEYFILE ESCAPE, V3713 VERIFY
-      SUMMARY, V3713 DEAD FUNCS, V3713 KCONFIG CLEANUP, V3713
-      EXIT_USAGE, V3713 CHECK JOB4 FILE, V3713 TRACKED TMPDIR
-      CLEANUP, plus _btrfs_pre_snapshot and _gkeyfile_escape in
-      HELPER BODIES pattern.
-  F5: [LOW] Check 182 updated: removed do_diagnose Sysctl Tuning
-      reference (function removed). Check 192 repurposed from
-      _gather_temps to _btrfs_pre_snapshot.
-  F6: [HIGH] 12 rg patterns in GROUP D and GROUP E used \| (literal
-      pipe) instead of | (alternation) in single-quoted bash strings.
-      All 12 searched for literal pipe characters, producing 0 matches
-      on every audit run. Affected sections: LOGS FUZZY MATCH,
-      PARALLEL CHILD TMPDIR, V3713 VERIFY SUMMARY, V3713 DEAD FUNCS,
-      V3713 CHECK JOB4 FILE, V3713 TRACKED TMPDIR CLEANUP, V371
-      NPROC GUARD, V371 SSH USER VERIFY, V371 MANIFEST GATE, V371
-      FLOCK ROTATION, V371 BATCH FALLBACK, PARALLEL CHILD SOURCE.
-      Fixed: removed backslash before | in all 12 patterns.
-  F7: [MED] STRING OPS filter `rg -v -- '--'` removed all lines
-      containing any --flag, causing false negatives when a string
-      command used --option but lacked the -- end-of-options separator.
-      Fixed: `rg -v ' -- '` (space-delimited match).
-  F8: [MED] IN-FUNCTION GLOBALS substring match `'set -g '` missed
-      set -ga (append) and set -gx (export) patterns, underreporting
-      global mutation count for check 199.
-      Fixed: `re.search(r'set -g[ax]? ', line)`.
-  F9: [MED] TMPFILE LIFECYCLE extractor regex r'^function (\w+) '
-      required trailing space after function name, missing bare
-      declarations without args or description. Same bug class as
-      the _py_extract lesson (GROUP_D line 209-211) but unfixed in
-      this extractor. Check 219 tmpfile counts incomplete.
-      Fixed: r'^function (\w+)( |$)'.
-  F10:[LOW] SORT LOCALE filter `rg -v 'sort -'` excluded all sort
-      invocations with options, hiding commands needing LC_ALL=C.
-      Fixed: `rg -v '#|LC_ALL'` (only exclude comments and safe lines).
-  F11:[LOW] EMPTY SECTION GUARD message said "rg may have failed
-      silently" but sections could also be empty due to SIZE GATE
-      truncation. Misleading during triage.
-      Fixed: "rg returned 0 results or section truncated by SIZE GATE".
-  Lesson: GROUP_D/GROUP_E — rg alternation in single-quoted bash
-      strings: \| is literal pipe. Use unescaped | for alternation.
+  F1: [MED] PASS 1 data collection groups A1–E ran serially despite
+      parallel intent. Fixed outer subshell wrapping.
+  F2: [MED] --diagnose mode removed in ry-install v3.7.13. Audit
+      prompt updated: 6 patterns removed, checks 254-255/274-275
+      rewritten, test counts updated.
+  F3: [LOW] 14 stale inline metrics updated for v3.7.13.
+  F4: [LOW] 10 new data collection patterns added to GROUP D.
+  F5: [LOW] Checks 182, 192 updated for removed/repurposed functions.
+  F6: [HIGH] 12 rg patterns used \| (literal pipe) instead of |
+      (alternation) in single-quoted bash strings. All 12 produced
+      0 matches on every audit run.
+  F7: [MED] STRING OPS filter removed all --flag lines (false neg).
+  F8: [MED] IN-FUNCTION GLOBALS missed set -ga and set -gx patterns.
+  F9: [MED] TMPFILE LIFECYCLE extractor missed bare function decls.
+  F10:[LOW] SORT LOCALE filter excluded all sort with options.
+  F11:[LOW] EMPTY SECTION GUARD message was misleading.
 
-PRIOR VERSIONS (v25 → v31.2.1)
--------------------------------
-Version   Checks  Summary
-v31.2.1   285     5 fixes from exhaustive self-audit.
-v31.2.0   285     5 code fixes, 4 new audit infra lessons.
-v31.0.0   285     3 code fixes, 3 doc additions.
-v30.0.0   285     Sync with ry-install v3.7.1. +10 checks (275 → 285).
-v29.0.0   275     Deep verification of v3.7.0 parallel patterns. +6 checks (269 → 275).
-v28.11.0  269     Sync with ry-install v3.7.0 (was v3.5.2). +6 checks (263 → 269).
-v28.10.0  263     3 fixes from exhaustive self-audit against v3.5.2.
-v28.9.0   263     7 fixes from cross-validation against v3.5.2.
-v28.8.0   263     1 fix from double-check cross-validation pass.
-v28.7.0   263     2 fixes from script-vs-prompt cross-validation.
-v28.6.0   263     2 fixes from double-check cross-validation pass.
-v28.5.0   263     2 fixes from script-vs-prompt cross-validation.
-v28.4.0   263     4 fixes from second-pass audit prompt self-audit.
-v28.3.0   263     4 fixes from comprehensive audit prompt self-audit.
-v28.2.0   263     10 fixes from extended audit prompt self-audit.
-v28.1.0   263     3 fixes from audit prompt self-audit.
-v28.0.0   263     2 updates from v3.5.2 log marker naming fix.
-v26.5.1   254     8 updates from v3.3.7 scope shadow fixes.
-v26.4.0   254     7 updates from v3.3.5 scope shadow fixes.
-v26.3.0   254     7 updates from v3.3.4 audit fixes.
-v26.2.0   254     3 correctness fixes from v26.2 audit of v3.3.2.
-v26.1.0   254     8 robustness/correctness fixes.
-v26.0.0   254     Reorder phases. Add PCRE2 fallbacks.
-v25       254     Remove --watch/--rollback/--gaming/--profile/--interval.
+PRIOR VERSIONS: v25 (254 checks) → v31.2.1 (285 checks), 22 releases.

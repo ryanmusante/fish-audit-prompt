@@ -1,15 +1,15 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.7.13
-Derived from: ry-install.fish v3.7.13 audit (2026-03-16)
-Checks: 285
-Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.13)
+Version: 3.7.23
+Derived from: ry-install.fish v3.7.23 audit (2026-03-17)
+Checks: 293
+Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.23)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
 ───────────────────────────────────────────────────────────────
 
-285-check audit (270 static + 15 runtime) for production fish scripts managing system config,
+293-check audit (278 static + 15 runtime) for production fish scripts managing system config,
 sudo, credentials, embedded configs, and multi-mode dispatch with
 verification subsystems.
 
@@ -97,6 +97,23 @@ KEY LESSONS (sorted by check number):
            consistent pattern across all parallel-forking modes
       286  _manifest_write must be gated on success; partial deploys
            (EXIT_BOOT_CRIT) must not record to manifest
+      289  fish -c bodies must use single-quoted strings + $argv positional
+           args; double-quoted fish -c with variable interpolation enables
+           shell injection from paths with metacharacters
+      290  Fish {$var} is literal braces + variable, not interpolation;
+           use string concatenation ("prefix"$var"suffix")
+      291  Parallel children: capture $status into set -l rc BEFORE any
+           command (echo $status resets $status to 0)
+      292  Fish glob cancellation: count "$dir"/* returns nothing on empty
+           dir; use find-based count with numeric validation
+      293  wait with no args blocks on ALL background jobs; guard with
+           count $pids before wait $pids
+      294  Parallel fork must be bounded: min(N, nproc) workers; unbounded
+           fork causes oversubscription on low-core systems
+      295  install_file: post-write test -L re-check closes TOCTOU between
+           pre-write symlink guard and tee/chmod/mv
+      296  Fish test -o / test -a are deprecated POSIX extensions; use
+           idiomatic "; or" / "; and"
       P3   Static analysis misses execution-order bugs
 
   AUDIT INFRA LESSONS (sorted by audit prompt section):
@@ -133,7 +150,9 @@ KEY LESSONS (sorted by check number):
            _flock_rc, case_count, checked, record_idx; removed total,
            code2). v30.0.0: removed _ps, _regdom_ps. v31.0.0: no change.
            v3.7.13: removed verify_status, missing, _bl_loaded (diagnose
-           cleanup + dead code removal), stays at 32 local vars.
+           cleanup + dead code removal), stayed at 32 local vars.
+           v3.7.23: added actual_count, mismatches, num_workers, start_idx,
+           total_dsts; removed record_idx. Now at 36 local vars.
            Excludes Fish builtins ($status) and script
            globals (MAX_LOGS) — extractor checks set -l
            only, so builtins/globals always show init=0 (false positive).
@@ -226,6 +245,23 @@ KEY LESSONS (sorted by check number):
              LOCALE `rg -v 'sort -'` hid sort-with-options; TMPFILE
              LIFECYCLE r'^function (\w+) ' missed bare declarations;
              IN-FUNCTION GLOBALS 'set -g ' missed set -ga/set -gx.
+    GROUP_D  FISH-C INJECTION: double-quoted fish -c "...\$var..."
+             enables shell injection from paths containing single
+             quotes or metacharacters. Collection pattern: rg for
+             'fish -c "' (expect 0 hits). All must use single-quoted
+             body with $argv positional args via -- separator.
+    GROUP_D  BRACE EXPANSION: Fish treats {$var} as literal braces
+             + variable, not interpolation. Collection: rg '{\$'
+             (expect 0 hits). Result files get paths like
+             "dir/{hash}_suffix" instead of "dir/hash_suffix".
+    GROUP_E  PARALLEL STATUS: bare `echo $status` resets $status to 0
+             before echo runs; parallel child result files always
+             contain 0. Pattern: rg 'echo \$status' (expect 0 hits);
+             correct pattern: set -l rc $status; printf '%d\n' $rc.
+    GROUP_E  WAIT GUARD: `wait` with no args blocks on ALL background
+             jobs including sudo keepalive. Must guard with
+             `count $pids` before `wait $pids` for potentially-empty
+             pid lists. Named PIDs (unconditionally forked) are safe.
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -272,7 +308,7 @@ STEP 2: FALLBACKS (bash-only — do not fish-ify)
 
 STEP 3: SAVE CHECKLIST TO DISK
 
-  Save the 270-check static analysis checklist (phases 1-11, 13-15;
+  Save the 278-check static analysis checklist (phases 1-11, 13-15;
   phase 12's 15 runtime checks are inline in PASS 2) from the
   CHECKLIST REFERENCE section (at end of this document) to
   /home/claude/audit-data/checklist.txt.
@@ -281,11 +317,11 @@ STEP 3: SAVE CHECKLIST TO DISK
   "CHECKLIST REFERENCE" header through end of Phase 15, then write
   that content to /home/claude/audit-data/checklist.txt via
   create_file or bash heredoc. Copy verbatim — do not regenerate or
-  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 270.
+  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 278.
 
   PASS 2 runtime count verification (inline in PASS 2 section):
     grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 15.
-    Total: 270 + 15 = 285.
+    Total: 278 + 15 = 293.
 
   Read phases on demand during analysis:
     bat --plain -r START:END /home/claude/audit-data/checklist.txt
@@ -459,7 +495,7 @@ for line in lines:
     echo "=== NUMERIC VAR INIT ===" && python3 -c "
 import subprocess, sys; F = sys.argv[1]
 # Excludes Fish builtins (\$status) and script globals (MAX_LOGS) — always initialized by runtime/top-level set -g
-for v in 'errors total_err line_count ret idx_a idx_b perm_checked dir_checked failed code steps_count reload_wait wifi_retry next_i next_i2 _log_count bad_perms dir_bad fixed_count i install_status mask_count mode_count pac_managed_bad pad perm_bad read_ok _boot_rc _flock_rc case_count checked record_idx'.split():
+for v in '_boot_rc _flock_rc _log_count actual_count bad_perms case_count checked code dir_bad dir_checked errors failed fixed_count i idx_a idx_b install_status line_count mask_count mismatches mode_count next_i next_i2 num_workers pac_managed_bad pad perm_bad perm_checked read_ok reload_wait ret start_idx steps_count total_dsts total_err wifi_retry'.split():
     init = subprocess.run(['rg', '-c', f'set -l {v} ', F], capture_output=True, text=True)
     used = subprocess.run(['rg', '-c', 'test \$' + v + ' ', F], capture_output=True, text=True)
     print(f'{v}: init={init.stdout.strip() or \"0\"} test={used.stdout.strip() or \"0\"}')
@@ -564,7 +600,7 @@ for line in lines:
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v3.7.13 specifics ──
+  # ── GROUP D: P14 v3.1.0–v3.7.23 specifics ──
   ( (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -690,6 +726,22 @@ print(f'{count} in-function set -g')
     echo "=== V371 FLOCK ROTATION ===" && rg -n 'flock.*xargs|flock.*_log_base' "$F" | head -5
     echo "=== V371 BATCH FALLBACK ===" && rg -n 'Batch enable failed|retrying individually' "$F" | head -5
     echo "=== V371 DEAD IDX ===" && _py_extract "$F" "do_check" | rg 'idx 0' | head -5
+    echo "=== V3723 FISH-C INJECTION ===" && rg -n 'fish -c "' "$F" | head -10
+    echo "=== V3723 FISH-C SAFE ===" && rg -nc "fish -c '" "$F"
+    echo "=== V3723 BRACE EXPANSION ===" && rg -n '{\$' "$F" | head -10
+    echo "=== V3723 ECHO STATUS ===" && rg -n 'echo \$status' "$F" | rg -v '#' | head -10
+    echo "=== V3723 TEST DEPRECATED ===" && rg -n 'test .* -o |test .* -a ' "$F" | head -10
+    echo "=== V3723 WAIT GUARD ===" && rg -n 'wait \$' "$F" | head -20
+    echo "=== V3723 WAIT COUNT GUARD ===" && rg -n 'count.*pids.*wait|test.*count.*wait' "$F" | head -10
+    echo "=== V3723 WORKER CAP ===" && rg -n 'nproc|num_workers|min.*nproc' "$F" | head -20
+    echo "=== V3723 POST-WRITE SYMLINK ===" && rg -n 'test -L.*tmpfile' "$F" | head -10
+    echo "=== V3723 INSTALL-FILE RELPATH ===" && rg -n 'install-file requires absolute' "$F" | head -5
+    echo "=== V3723 DIFF BATCH ===" && rg -n 'diff_pids|diff.*batch' "$F" | head -10
+    echo "=== V3723 AND-OR STYLE ===" && rg -nc '; and \|; or ' "$F"
+    echo "=== V3723 BASH AND-OR ===" && rg -n '&&\|||' "$F" | rg -v '#|awk|/bin/sh|ExecStart|printf.*&&|echo.*&&' | head -20
+    echo "=== V3723 LOCK DOUBLE VERIFY ===" && rg -n 'verify_pid2|sleep 0.1' "$F" | head -10
+    echo "=== V3723 MKTEMP DEGRADED ===" && rg -n '_MKTEMP_DEGRADED_WARNED' "$F" | head -5
+    echo "=== V3723 RUN STDOUT CAP ===" && rg -n 'STDOUT_TRUNCATED' "$F" | head -5
     echo "=== INLINE COMMENT DENSITY ===" && python3 -c "
 import re, sys
 lines = open(sys.argv[1]).readlines()
@@ -813,6 +865,8 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
     done 2>&1
     echo "=== PARALLEL BARE SUDO ===" && rg -n 'sudo ' "$F" | rg -v '_run|_ensure_sudo|#|sudo true|sudo -k|SUDO_KEEPALIVE|keepalive' | head -20
     echo "=== PARALLEL CHILD SOURCE ===" && rg -n 'source.*funcs|functions.*needed' "$F" | head -10
+    echo "=== PARALLEL ECHO STATUS ===" && rg -n 'echo \$status' "$F" | rg -v '#' | head -10
+    echo "=== FISH-C DQ INJECTION ===" && rg -n 'fish -c "' "$F" | rg -v '#' | head -10
   ) > "$D/p13.txt" 2>&1; echo "GROUP_E_EXIT=$?" >> "$D/p13.txt" ) &
 
   wait
@@ -820,7 +874,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
   # ── Post-wait data guard (D and E collect independently; E's ──
   # ── P13 analysis reads p14.txt for 11 shared patterns)       ──
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.7.13 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.7.23 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -839,7 +893,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14-P15 (v3.1.0-v3.7.13 specifics, deep checks)" ;;
+        p14)    phases="P14-P15 (v3.1.0-v3.7.23 specifics, deep checks)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -891,7 +945,7 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phases 14-15 (version specifics v3.1.0-v3.7.13, deep checks)
+    p14.txt   → Phases 14-15 (version specifics v3.1.0-v3.7.23, deep checks)
 
   If p14.txt is missing or truncated, mark shared-pattern P13
   checks (234-238) as DEFERRED. If p13.txt is missing, mark P13
@@ -1237,7 +1291,7 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-288,
+  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-296,
   P15 → #215-233, P12 → #239-253.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
@@ -1257,7 +1311,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v3.7.13 Specifics (79 checks) ──────────
+─── Phase 14: v3.1.0–v3.7.23 Specifics (87 checks) ──────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1336,16 +1390,16 @@ STEP 2: ANALYZE ON DISK
 
   14.10 CODE QUALITY (v3.2.6–v3.2.10)
        [ ] 195. Section headers: 17 `# ── Description ──` markers.
-       [ ] 196. Function comment coverage: 80/80 with nearby # comment.
-       [ ] 197. `command` prefix on ≥126 coreutils calls. No bare coreutils
+       [ ] 196. Function comment coverage: 79/80 with nearby # comment.
+       [ ] 197. `command` prefix on ≥138 coreutils calls. No bare coreutils
                outside sudo context.
        [ ] 198. --argument-names on ≥20 functions.
 
   14.11 SCOPING + ROLLBACK (v3.2.9–v3.2.10)
-       [ ] 199. In-function set -g: ~134 (intentional VERIFY_*/flag globals).
+       [ ] 199. In-function set -g: ~130 (intentional VERIFY_*/flag globals).
 
   14.12 LOGGING + VERIFICATION (v3.2.8–v3.2.10)
-       [ ] 200. _log START/END markers on 7 modes. rg START → 7, END → 8.
+       [ ] 200. _log START/END markers on 6 modes. rg START → 6, END → 7.
                Symmetric naming: mode name without extra qualifiers
                (e.g. "LINT START" not "LINT CHECK START"; v3.5.2).
        [ ] 201. 28 section/block comments: managed destinations, logging/counters,
@@ -1356,9 +1410,9 @@ STEP 2: ANALYZE ON DISK
                after atomic mv. Failure → INSTALL_HAD_ERRORS.
        [ ] 203. WiFi credentials: set before use, erased after iwd config.
                Not stored as globals beyond pipeline.
-       [ ] 204. Unconditional log rotation for all modes. ~616 vars have
+       [ ] 204. Unconditional log rotation for all modes. ~686 vars have
                explicit set -l. ~313 bare set for cross-block vars.
-               _run wraps ≥83 distinct sudo commands for logging.
+               _run wraps ≥85 commands for logging.
 
   14.13 STDOUT + SECURITY (v3.2.10)
        [ ] 205. All UI output → stderr. Intentional stdout: return-value
@@ -1399,9 +1453,9 @@ STEP 2: ANALYZE ON DISK
                install_file (_cur_content),
                _install_collect_wifi (wlan_iface, wifi_pass),
                _install_finalize (reload_wait, wifi_retry).
-       [ ] 213. In-function set -g count: ~134 (intentional VERIFY_*/flag
+       [ ] 213. In-function set -g count: ~130 (intentional VERIFY_*/flag
                globals). Bare set count: ~313 (cross-block
-               updaters). set -l count: ~616. Grand total scope fixes: 186.
+               updaters). set -l count: ~686. Grand total scope fixes: 186.
        [ ] 214. _analyze_log total_step_s: bare set (not set -g on local).
                Step timing total correctly computed. (F-14, v3.3.1)
 
@@ -1546,6 +1600,40 @@ STEP 2: ANALYZE ON DISK
                race between concurrent read-only instances. Falls back
                to bare xargs when flock absent.
 
+  14.22 v3.7.14–v3.7.23 FIXES (8 checks)
+       [ ] 289. fish -c injection safety: 0 double-quoted fish -c bodies
+               with variable interpolation (rg 'fish -c "' → 0 hits).
+               All 13 fish -c calls use single-quoted bodies with $argv
+               positional args via -- separator. Regression from v3.7.19
+               (6 sites) + v3.7.21 (6 sites) + v3.7.14 (1 site).
+       [ ] 290. Fish brace expansion: 0 {$var} patterns (rg '{\$' → 0).
+               String concatenation used instead. Regression from v3.7.17
+               do_check false-positive drift.
+       [ ] 291. Parallel status capture: 0 bare `echo $status` in parallel
+               children (rg 'echo \$status' excluding comments → 0). All
+               use `set -l rc $status; printf '%d\n' $rc`. Regression
+               from v3.7.21.
+       [ ] 292. Fish glob cancellation: 0 `count "$dir"/*` patterns that
+               fail on empty directories. Find-based count with numeric
+               validation used instead. Regression from v3.7.20.
+       [ ] 293. wait guard: all wait $pids calls on potentially-empty pid
+               lists preceded by `count $pids` guard. Prevents blocking
+               on unrelated background jobs (sudo keepalive). Named PIDs
+               (unconditionally forked) exempt. Regression from v3.7.15.
+       [ ] 294. Parallel worker cap: all parallel-forking functions use
+               min(N, nproc) bounded workers. verify_static: min(4, nproc).
+               do_diff: nproc batch throttle. do_test_all: 3-tier
+               (nproc<8 sequential, 8-15 batch, 16+ full). Regression
+               from v3.7.15 (verify_static), v3.7.17 (do_diff), v3.7.23
+               (verify_static nproc cap).
+       [ ] 295. install_file post-write symlink re-check: test -L after tee
+               and before chmod/mv in both sudo and user paths (4 total
+               check sites). Closes TOCTOU between pre-write guard and
+               write. Regression from v3.7.23.
+       [ ] 296. Deprecated test operators: 0 test -o / test -a usage
+               (rg 'test .* -o |test .* -a ' → 0). Fish idiomatic
+               "; or" / "; and" used instead. Regression from v3.7.21.
+
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
   15.1 FORMATTING
@@ -1564,7 +1652,8 @@ STEP 2: ANALYZE ON DISK
                branch. Key: validate_configs (7/8), install_file (5/11).
 
   15.5 ATOMIC FILE OPERATIONS
-       [ ] 220. install_file: chmod BEFORE mv. Symlink TOCTOU guard.
+       [ ] 220. install_file: chmod BEFORE mv. Symlink TOCTOU guard
+               (pre-write AND post-write test -L in both sudo/user paths).
 
   15.6 INJECTION SAFETY
        [ ] 221. _chk_grep: grep -qF --. printf: %s for user values.
@@ -1572,7 +1661,7 @@ STEP 2: ANALYZE ON DISK
 
   15.7 VARIABLE INITIALIZATION
        [ ] 222. Every numeric var in test has prior set -l with numeric
-               value. Init count ≥ test count for all 32 local vars.
+               value. Init count ≥ test count for all 36 local vars.
                Fish builtins ($status) and script globals (MAX_LOGS)
                excluded — always initialized by runtime.
        [ ] 223. Word splitting N/A in fish. Unquoted $var in test is safe.
@@ -1669,7 +1758,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     for mode in \
       "--verify-static" "--verify-runtime" "--lint" "--test-all" \
       "--completions" "--diff" "--check" \
-      "--install-file" "--install-file /etc/kernel/cmdline --dry-run"; do
+      "--install-file" "--install-file relative/path" "--install-file /etc/kernel/cmdline --dry-run"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b2.txt" &
@@ -1766,13 +1855,15 @@ STEP 3: CHECKLIST
                (drift), --verify-* returns 1 (missing configs). Always examine stderr to distinguish
                expected non-target failures from real bugs.
        [ ] 244. 2: invalid flag, conflicts, modifier-only,
-               --install-file no path, --diff relative/path
+               --install-file no path, --install-file relative/path,
+               --diff relative/path
        [ ] 245. 1: runtime failures
 
   12.3 OPTION VALIDATION
        [ ] 246. Every flag accepted; modifier guards enforced
        [ ] 247. Multiple modes → exit 2; -- stops parsing
        [ ] 248. --install-file no path → exit 2 (pre-lock);
+               --install-file relative/path → exit 2 (pre-lock);
                --diff: non-absolute → 2, non-managed → 1
   12.4 NO_COLOR
        [ ] 249. 0 ANSI escapes across ALL modes with NO_COLOR=1
@@ -1824,10 +1915,10 @@ STEP 2: SUMMARY TABLE
    10     | 11     |      |      |
    11     | 14     |      |      |
    13     | 5      |      |      |
-   14     | 79     |      |      |
+   14     | 87     |      |      |
    15     | 19     |      |      |
    12     | 15     |      |      |
-  TOTAL  | 285    |      |      |
+  TOTAL  | 293    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
@@ -1835,8 +1926,8 @@ STEP 2: SUMMARY TABLE
     Always PASS       137 (false-positive documentation)
     Runtime only      143 (redirect regression), PASS 2 checks (15)
     Expect 0 hits     83, 171, 176, 177 (functional; comments exempt),
-                      193, 257, 259, 260, 263, 268, 273, 283
-                      (regressions)
+                      193, 257, 259, 260, 263, 268, 273, 283,
+                      289, 290, 291, 292, 296 (regressions)
     WARN not exit 2   247 (modifier-only flags)
     Examine stderr    --test-all exit 1 on non-target: always inspect
                       stderr output, do not categorize as "container-adjusted"
