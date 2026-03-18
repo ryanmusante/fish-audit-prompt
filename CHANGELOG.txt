@@ -1,6 +1,49 @@
 FISH AUDIT PROMPT — CHANGELOG
 ==============================
 
+v3.7.29 (2026-03-17): Audit prompt external audit. 0 new checks (293 → 293).
+  5 findings (0 CRIT, 0 HIGH, 3 MED, 2 LOW).
+
+  F-1: [MED] PASS3 TOTAL line missing grep -c fallback: per-severity
+       counts use rg → grep → echo 0, but TOTAL uses rg → echo 0.
+       Reports 0 when rg unavailable despite findings. Fixed: added
+       grep -c '^F-' intermediate fallback.
+
+  F-2: [LOW] CONTEXT BUDGET header says "tool output" but 3000 budget
+       includes 1400 lines overhead (analysis/reasoning). Auditors
+       misread as 3000 tool-output-only budget. Fixed: "Total context
+       usage must not exceed 3000 lines."
+
+  F-3: [LOW] test-all timeout hardcoded 90 instead of derived from
+       RUNTIME_TIMEOUT. Changing RUNTIME_TIMEOUT decouples from
+       test-all. Fixed: $((RUNTIME_TIMEOUT * 3)).
+
+  F-4: [MED] PASS2 OP MODE STDOUT check only verifies dry-run and lint
+       (2 of ~10 op modes). Check 241 claims "all to stderr, 0 stdout"
+       but remaining modes have stdout discarded to /dev/null. Fixed:
+       added Group B2 stdout capture for --verify-static, --check,
+       --completions; expanded STEP2 wc -c to include new files.
+
+  F-5: [MED] EMPTY SECTION GUARD "$D"/*.txt glob processes SIZE GATE
+       recovery files (*-full-sections.txt, *-kept-sections.txt,
+       *-lost.txt) as data files. Generates ~220 false [INFO] EMPTY
+       SECTION markers when p14.txt truncated. Fixed: narrowed glob
+       to "$D"/p*.txt.
+
+  Verified not bugs (12):
+    - else handling: two correct patterns for different extractor contexts.
+    - SPECIAL HANDLING expect 0 hits: complete (293-295 correctly excluded).
+    - Scope shadow begin boundary: guarded by check 215.
+    - Check count: 278 static + 15 runtime = 293. Gaps 130-132 documented.
+    - SETUP STEP 3: works for uploaded file and context extraction.
+    - GROUP exit status: last-command only. Documented v3.7.25 F-3.
+    - PASS2 exit code analysis: manual auditor comparison. By design.
+    - PASS2 $mode unquoted: intentional word splitting for multi-word modes.
+    - PASS2 -- stop-parsing: static analysis only. Acceptable.
+    - NO_COLOR stderr-only: correct per output contract (check 205).
+    - PASS1→PASS2 F=/S=: separate bash blocks, independent. Correct.
+    - PASS2 SIGPIPE: printf --, PIPESTATUS[0], /bin/bash -c. Correct.
+
 v3.7.28 (2026-03-17): Audit prompt self-audit pass 2. 0 new checks (293 → 293).
   4 findings (0 CRIT, 1 HIGH, 2 MED, 1 LOW).
 

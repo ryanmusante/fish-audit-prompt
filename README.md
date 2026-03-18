@@ -1,10 +1,10 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.7.28-blue?style=flat-square)
+![version](https://img.shields.io/badge/version-3.7.29-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
 
-Derived from `ry-install.fish` v3.7.23 · 293 checks across 15 phases · Prompt v3.7.28
+Derived from `ry-install.fish` v3.7.23 · 293 checks across 15 phases · Prompt v3.7.29
 
 ## Overview
 
@@ -52,7 +52,7 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 
 | File | Description |
 |------|-------------|
-| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.28) |
+| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.29) |
 | `CHANGELOG.txt` | Version history with per-finding details |
 | `README.md` | This file |
 
@@ -67,6 +67,7 @@ Each audit produces:
 
 | Version | Checks | ry-install | Summary |
 |---------|--------|------------|---------|
+| v3.7.29 | 293 | v3.7.23 | 5 fixes: TOTAL grep fallback, context budget label, test-all timeout, op mode stdout coverage, empty section guard glob |
 | v3.7.28 | 293 | v3.7.23 | 4 fixes: CHANGELOG sync, help stdout verify, flag equivalence, scope shadow begin boundary |
 | v3.7.27 | 293 | v3.7.23 | 3 fixes: PASS2 dry-run/stdout analysis, GROUP E redundancy removal, infra lesson |
 | v3.7.26 | 293 | v3.7.23 | 6 fixes: SIZE GATE label, dry-run FS coverage, rg fallback, timeout doc, P3 sort, Group C labels |

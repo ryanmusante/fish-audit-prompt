@@ -1,6 +1,6 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.7.28
+Version: 3.7.29
 Derived from: ry-install.fish v3.7.23 audit (2026-03-17)
 Checks: 293
 Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.23)
@@ -384,7 +384,7 @@ TOOL MANDATES:
                 low-hit. Exceptions: rg -c (count-only) needs no cap.
 
 CONTEXT BUDGET:
-  Total tool output in context must not exceed 3000 lines across
+  Total context usage must not exceed 3000 lines across
   ALL passes. Budget per pass:
     PASS 1 (gather+analyze):  800 lines tool output max
     PASS 2 (runtime):         600 lines tool output max
@@ -926,7 +926,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
   done
 
   # ── EMPTY SECTION GUARD: detect sections with 0 data lines ──
-  for f in "$D"/*.txt; do
+  for f in "$D"/p*.txt; do
     while IFS= read -r header; do
       section=$(echo "$header" | sed 's/^=== //;s/ ===$//')
       # Get line count between this header and the next (or EOF)
@@ -1796,6 +1796,12 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   wait
   cat "$D"/exit-b{1,2,3,4}.txt > "$D/exit-codes.txt"
 
+  # Group B2: stdout leak check for additional op modes
+  timeout "$RUNTIME_TIMEOUT" fish "$S" --verify-static >"$D/vs-out.txt" 2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" fish "$S" --check >"$D/check-out.txt" 2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" fish "$S" --completions >"$D/comp-out.txt" 2>/dev/null &
+  wait
+
   # Group C: dry-run + lint + test-all stderr
   ( # C1: dry-run filesystem safety
     # Monitor all managed parent directories, not just modprobe.d
@@ -1809,7 +1815,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     timeout "$RUNTIME_TIMEOUT" fish "$S" --lint >"$D/lint-out.txt" 2>"$D/lint-err.txt"
   ) &
   ( # C3: test-all (extended timeout — spawns 19 fish subprocesses); capture stderr for analysis
-    timeout 90 fish "$S" --test-all >/dev/null 2>"$D/test-all-err.txt"
+    timeout $((RUNTIME_TIMEOUT * 3)) fish "$S" --test-all >/dev/null 2>"$D/test-all-err.txt"
   ) &
   wait
 
@@ -1850,7 +1856,7 @@ STEP 2: ANALYSIS
   echo "=== ANSI (expect 0) ===" && { rg -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || grep -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || echo "none"; }
   echo "=== DRY-RUN FS (expect empty) ===" && bat --plain "$D/dry-diff.txt" 2>/dev/null || cat "$D/dry-diff.txt"
   echo "=== DRY-RUN [DRY] MESSAGES (expect present) ===" && rg -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || grep -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || echo "0"
-  echo "=== OP MODE STDOUT BYTES (expect 0) ===" && wc -c "$D"/{dry-out,lint-out}.txt 2>/dev/null
+  echo "=== OP MODE STDOUT BYTES (expect 0) ===" && wc -c "$D"/{dry-out,lint-out,vs-out,check-out,comp-out}.txt 2>/dev/null
   echo "=== LINT ===" && bat --plain "$D/lint-err.txt" 2>/dev/null || cat "$D/lint-err.txt"
   echo "=== REDIRECT ===" && bat --plain "$D/redirect-err.txt" 2>/dev/null || cat "$D/redirect-err.txt"
   echo "=== HELP 141 (expect hit) ===" && bat --plain "$D/help-141.txt" 2>/dev/null || cat "$D/help-141.txt"
@@ -1917,7 +1923,7 @@ STEP 1: COLLATE
       echo "$sev: $c"
     end
   ' -- "$O"
-  echo "TOTAL: $(rg -c '^F-' "$O" 2>/dev/null || echo 0)"
+  echo "TOTAL: $(rg -c '^F-' "$O" 2>/dev/null || grep -c '^F-' "$O" 2>/dev/null || echo 0)"
   ```
 
 STEP 2: SUMMARY TABLE
