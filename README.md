@@ -1,10 +1,10 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.7.29-blue?style=flat-square)
+![version](https://img.shields.io/badge/version-3.7.32-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
 
-Derived from `ry-install.fish` v3.7.23 · 293 checks across 15 phases · Prompt v3.7.29
+Derived from `ry-install.fish` v3.7.23 · 294 checks across 15 phases · Prompt v3.7.32
 
 ## Overview
 
@@ -14,7 +14,7 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 
 | Metric | Value |
 |--------|-------|
-| Total checks | 293 (278 static + 15 runtime) |
+| Total checks | 294 (279 static + 15 runtime) |
 | Phases | 15 (12 static + 1 runtime + 1 gap analysis + 1 version-specifics) |
 | Passes | 3 (gather+analyze, runtime, finalize) |
 | Key lessons | 60+ (indexed by check number) |
@@ -45,14 +45,14 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 | 11 | 14 | Testing & validation (preflight, config validation, dry-run) |
 | 12 | 15 | Runtime tests (stdout/stderr, exit codes, NO_COLOR, dry-run, lint) |
 | 13 | 5 | Gap analysis (race conditions, error paths, DRY gates, lock) |
-| 14 | 87 | v3.1.0–v3.7.23 specifics (KVER, helpers, sysctl, scope, decomposition, batch, parallel, injection safety) |
+| 14 | 88 | v3.1.0–v3.7.32 specifics (KVER, helpers, sysctl, scope, decomposition, batch, parallel, injection safety, sudo -n) |
 | 15 | 19 | Supplemental deep checks (formatting, tmpfile tracing, flag sync) |
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.29) |
+| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.32) |
 | `CHANGELOG.txt` | Version history with per-finding details |
 | `README.md` | This file |
 
@@ -67,6 +67,9 @@ Each audit produces:
 
 | Version | Checks | ry-install | Summary |
 |---------|--------|------------|---------|
+| v3.7.32 | 294 | v3.7.32 | +1 check: _find_pacnew_files sudo -n non-interactive credential safety |
+| v3.7.31 | 293 | v3.7.23 | 2 fixes: duplicate _py_extract batch processing, PASS2 VERSION multi-line guard |
+| v3.7.30 | 293 | v3.7.23 | 2 fixes: PASS3 collation double-output on 0-match severities, ANSI check unnecessary PCRE2 flag |
 | v3.7.29 | 293 | v3.7.23 | 5 fixes: TOTAL grep fallback, context budget label, test-all timeout, op mode stdout coverage, empty section guard glob |
 | v3.7.28 | 293 | v3.7.23 | 4 fixes: CHANGELOG sync, help stdout verify, flag equivalence, scope shadow begin boundary |
 | v3.7.27 | 293 | v3.7.23 | 3 fixes: PASS2 dry-run/stdout analysis, GROUP E redundancy removal, infra lesson |

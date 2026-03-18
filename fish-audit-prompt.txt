@@ -1,15 +1,15 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.7.29
+Version: 3.7.32
 Derived from: ry-install.fish v3.7.23 audit (2026-03-17)
-Checks: 293
-Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.23)
+Checks: 294
+Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.32)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
 ───────────────────────────────────────────────────────────────
 
-293-check audit (278 static + 15 runtime) for production fish scripts managing system config,
+294-check audit (279 static + 15 runtime) for production fish scripts managing system config,
 sudo, credentials, embedded configs, and multi-mode dispatch with
 verification subsystems.
 
@@ -114,6 +114,8 @@ KEY LESSONS (sorted by check number):
            pre-write symlink guard and tee/chmod/mv
       296  Fish test -o / test -a are deprecated POSIX extensions; use
            idiomatic "; or" / "; and"
+      297  Read-only sudo helpers (find, stat) use sudo -n to prevent
+           interactive credential prompts in dry-run/read-only contexts
   AUDIT INFRA (not a check):
       P3   Static analysis misses execution-order bugs
 
@@ -268,6 +270,15 @@ KEY LESSONS (sorted by check number):
              ECHO STATUS and V3723 FISH-C INJECTION already in GROUP D.
              Redundancy wastes output budget and SIZE GATE allowance.
              Removed in v3.7.27.
+    PASS3  GREP-C DOUBLE OUTPUT: `rg -c` on 0-match returns nothing
+           (exit 1); `grep -c` on 0-match returns "0" (exit 1). In
+           Fish `; or echo 0` and bash `|| echo 0`, both 0-match cases
+           chain: grep outputs "0" (exit 1) → fallback outputs "0" →
+           two values captured. Fish stores as list ("0" "0"), bash
+           $() stores as "0\n0". Fix: Fish `set c $c[-1]` to take
+           last element; bash `{ ...; } | tail -1` to take last line.
+           Applies to ALL rg → grep → echo fallback chains producing
+           counts. v3.7.30 fixed PASS 3 collation (per-severity + TOTAL).
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -560,8 +571,8 @@ for i, line in enumerate(lines, 1):
     echo "=== MAGIC NUMS ===" && rg -n 'TEMP_|DISK_|BOOT_|MAX_|CACHE_|ROOT_AVAIL|NVME_LIFE' "$F" | head -30
     echo "=== DRY ===" && rg -n 'DRY|dry.run|--dry-run|\[DRY\]' "$F" | head -20
     echo "=== TEST_ALL ===" && rg -n 'do_test_all|verify.static|verify.runtime' "$F" | head -20
-    echo "=== TEST_ALL BODY ===" && _py_extract "$F" "do_test_all" | head -50
-    echo "=== TEST_ALL TMPFILES ===" && _py_extract "$F" "do_test_all" | rg 'mktemp|rm -f' | head -10
+    echo "=== TEST_ALL BODY ===" && { _tta=$(_py_extract "$F" "do_test_all"); printf '%s\n' "$_tta" | head -50; }
+    echo "=== TEST_ALL TMPFILES ===" && printf '%s\n' "$_tta" | rg 'mktemp|rm -f' | head -10
     echo "=== ISATTY ===" && rg -n 'isatty|test -t' "$F" | head -20
     echo "=== PRE-LOCK ===" && rg -n 'case install-file|case install|_acquire_lock' "$F" | head -20
     echo "=== PROGRESS DEFINED ===" && sed -n '/set -g PROGRESS_STEPS/,/^[^\\]*$/p' "$F" | rg -o '"[^"]*"' | tr -d '"' | sort | head -30
@@ -613,6 +624,7 @@ for line in lines:
     echo "=== _verify_unit_syntax ===" && rg -n '_verify_unit_syntax' "$F" | head -10
     echo "=== _check_service_active ===" && rg -n '_check_service_active' "$F" | head -10
     echo "=== _find_pacnew ===" && rg -n '_find_pacnew' "$F" | head -10
+    echo "=== _find_pacnew SUDO -N ===" && _py_extract "$F" "_find_pacnew_files" | rg 'sudo' | head -5
     echo "=== _get_boot_time ===" && rg -n '_get_boot_time' "$F" | head -10
     echo "=== EXISTENCE_ONLY ===" && rg -n 'existence.only' "$F" | head -10
     echo "=== MODULES-LOAD REGRESSION ===" && rg -n 'modules-load' "$F" | head -10
@@ -720,10 +732,10 @@ print(f'{count} in-function set -g')
     echo "=== V3713 GKEYFILE ESCAPE ===" && rg -n '_gkeyfile_escape' "$F" | head -10
     echo "=== V3713 VERIFY SUMMARY ===" && _py_extract "$F" "_verify_summary" | rg 'VERIFY_MODE|set -l' | head -10
     echo "=== V3713 DEAD FUNCS ===" && rg -n '_read_installed|validate_systemd_unit|validate_fish_script|passthrough' "$F" | head -5
-    echo "=== V3713 KCONFIG CLEANUP ===" && _py_extract "$F" "_do_cleanup" | rg '_KCONFIG_DATA' | head -5
+    echo "=== V3713 KCONFIG CLEANUP ===" && { _dca=$(_py_extract "$F" "_do_cleanup"); printf '%s\n' "$_dca" | rg '_KCONFIG_DATA' | head -5; }
     echo "=== V3713 EXIT_USAGE ===" && rg -n 'exit 2\b' "$F" | head -10
     echo "=== V3713 CHECK JOB4 FILE ===" && rg -n 'exp_svcs|mask_units' "$F" | head -10
-    echo "=== V3713 TRACKED TMPDIR CLEANUP ===" && _py_extract "$F" "_do_cleanup" | rg 'test -d|rm -rf|test -f' | head -10
+    echo "=== V3713 TRACKED TMPDIR CLEANUP ===" && printf '%s\n' "$_dca" | rg 'test -d|rm -rf|test -f' | head -10
     echo "=== V371 KERNEL GATE ===" && _py_extract "$F" "check_kernel_version" | rg 'return' | head -5
     echo "=== V371 NPROC GUARD ===" && rg -n 'nproc_val|nproc.*lt 8|sequentially' "$F" | head -10
     echo "=== V371 SSH USER VERIFY ===" && rg -n 'systemd-analyze.*user.*verify|--user verify' "$F" | head -10
@@ -846,7 +858,7 @@ for line in lines:
                 fn = None; body = []; continue
         body.append(line)
 " "$F" 2>&1
-    echo "=== DRY GATE ===" && rg -n 'sudo |pacman |systemctl |mv |tee ' "$F" | rg -v "DRY|$MSG_SKIP|#|echo|rg|string|printf" | head -30
+    echo "=== DRY GATE ===" && rg -n 'sudo |pacman |systemctl |mv |tee ' "$F" | rg -v "DRY|$MSG_SKIP|#|echo|rg|string|printf|sudo -n" | head -30
     echo "=== LOCK REGRESSION ===" && rg -n 'exec 9|_LOCK_METHOD.*flock' "$F" | head -5
     echo "=== LOCK TRACE ===" && rg -n 'mkdir.*LOCK|rmdir.*LOCK|verify_pid' "$F" | head -20
     echo "=== SORT LOCALE ===" && rg -n 'sort' "$F" | rg -v '#|LC_ALL' | head -20
@@ -871,7 +883,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
     echo "=== LOGS HELPER RETURN PATHS ===" && for fn in _logs_file_ops _logs_journal; do
       echo "--- $fn ---" && _py_extract "$F" "$fn" | rg 'return' | head -5
     done 2>&1
-    echo "=== PARALLEL BARE SUDO ===" && rg -n 'sudo ' "$F" | rg -v '_run|_ensure_sudo|#|sudo true|sudo -k|SUDO_KEEPALIVE|keepalive' | head -20
+    echo "=== PARALLEL BARE SUDO ===" && rg -n 'sudo ' "$F" | rg -v '_run|_ensure_sudo|#|sudo true|sudo -k|sudo -n|SUDO_KEEPALIVE|keepalive' | head -20
     echo "=== PARALLEL CHILD SOURCE ===" && rg -n 'source.*funcs|functions.*needed' "$F" | head -10
   ) > "$D/p13.txt" 2>&1; echo "GROUP_E_EXIT=$?" >> "$D/p13.txt" ) &
 
@@ -1337,7 +1349,9 @@ STEP 2: ANALYZE ON DISK
   14.2 RETURN-VALUE HELPERS (v3.1.0)
        [ ] 172. _ntsync_state: 5 states via stdout. All callers capture local.
        [ ] 173. _get_boot_time: seconds via stdout or return 1.
-               _find_pacnew_files: paths via stdout. No stale inlines.
+               _find_pacnew_files: paths via stdout. sudo -n prevents
+               credential prompts in dry-run/read-only contexts.
+               No stale inlines.
 
   14.3 VERIFICATION HELPERS (v3.1.0)
        [ ] 174. _verify_unit_syntax: --user auto-detect via path match.
@@ -1347,7 +1361,8 @@ STEP 2: ANALYZE ON DISK
 
   14.4 HELPER DEDUP + REGRESSIONS (v3.1.0)
        [ ] 176. 0 orphaned inline versions: no inline uname -r (outside
-               KVER init), no inline sudo find pacnew, no
+               KVER init), no inline sudo find pacnew (helper uses
+               sudo -n for non-interactive operation), no
                NTSYNC_SUPPORTED remnants.
        [ ] 177. sp5100_tco + btusb removed: not in MODPROBE_BLACKLIST,
                no cmdline params, no udev rules. rg → 0 functional hits
@@ -1650,6 +1665,13 @@ STEP 2: ANALYZE ON DISK
                (rg 'test .* -o |test .* -a ' → 0). Fish idiomatic
                "; or" / "; and" used instead. Regression from v3.7.21.
 
+  14.23 v3.7.32 FIX (1 check)
+       [ ] 297. _find_pacnew_files uses sudo -n (non-interactive): no
+               credential prompts in dry-run or read-only contexts.
+               rg 'sudo -n' in _find_pacnew_files body → 1 hit.
+               rg 'sudo [^-]' in _find_pacnew_files body → 0 hits.
+               Regression from v3.7.32.
+
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
   15.1 FORMATTING
@@ -1853,15 +1875,15 @@ STEP 2: ANALYSIS
   echo "=== STDERR BYTES (expect 0) ===" && wc -c "$D"/{help,h,ver,v}-err.txt
   echo "=== HELP STDOUT (expect >0) ===" && wc -c "$D"/{help,h}-out.txt
   echo "=== EXIT CODES ===" && bat --plain "$D/exit-codes.txt" 2>/dev/null || cat "$D/exit-codes.txt"
-  echo "=== ANSI (expect 0) ===" && { rg -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || grep -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || echo "none"; }
+  echo "=== ANSI (expect 0) ===" && { rg -c '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || grep -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || echo "none"; }
   echo "=== DRY-RUN FS (expect empty) ===" && bat --plain "$D/dry-diff.txt" 2>/dev/null || cat "$D/dry-diff.txt"
-  echo "=== DRY-RUN [DRY] MESSAGES (expect present) ===" && rg -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || grep -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || echo "0"
+  echo "=== DRY-RUN [DRY] MESSAGES (expect present) ===" && { rg -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || grep -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || echo "0"; } | tail -1
   echo "=== OP MODE STDOUT BYTES (expect 0) ===" && wc -c "$D"/{dry-out,lint-out,vs-out,check-out,comp-out}.txt 2>/dev/null
   echo "=== LINT ===" && bat --plain "$D/lint-err.txt" 2>/dev/null || cat "$D/lint-err.txt"
   echo "=== REDIRECT ===" && bat --plain "$D/redirect-err.txt" 2>/dev/null || cat "$D/redirect-err.txt"
   echo "=== HELP 141 (expect hit) ===" && bat --plain "$D/help-141.txt" 2>/dev/null || cat "$D/help-141.txt"
   echo "=== TEST-ALL STDERR (always examine) ===" && bat --plain "$D/test-all-err.txt" 2>/dev/null || cat "$D/test-all-err.txt" 2>/dev/null || echo "not yet collected"
-  echo "=== VERSION CONTENT ===" && { VER_OUT=$(sed 's/^v//' "$D/ver-out.txt"); VER_GLOBAL=$(rg -oP 'VERSION "\K[^"]+' "$S" 2>/dev/null || rg -o 'VERSION "[^"]+' "$S" | sed 's/VERSION "//'); echo "stdout: $VER_OUT"; echo "global: $VER_GLOBAL"; test "$VER_OUT" = "$VER_GLOBAL" && echo "MATCH" || echo "MISMATCH"; }
+  echo "=== VERSION CONTENT ===" && { VER_OUT=$(head -n 1 "$D/ver-out.txt" | sed 's/^v//'); VER_GLOBAL=$(rg -oP 'VERSION "\K[^"]+' "$S" 2>/dev/null || rg -o 'VERSION "[^"]+' "$S" | sed 's/VERSION "//'); echo "stdout: $VER_OUT"; echo "global: $VER_GLOBAL"; test "$VER_OUT" = "$VER_GLOBAL" && echo "MATCH" || echo "MISMATCH"; }
   echo "=== FLAG EQUIVALENCE ===" && { diff "$D/help-out.txt" "$D/h-out.txt" >/dev/null 2>&1 && echo "--help/-h: MATCH" || echo "--help/-h: MISMATCH"; diff "$D/ver-out.txt" "$D/v-out.txt" >/dev/null 2>&1 && echo "--version/-v: MATCH" || echo "--version/-v: MISMATCH"; }
   ```
 
@@ -1920,10 +1942,11 @@ STEP 1: COLLATE
   fish -c '
     for sev in CRITICAL HIGH MED LOW INFO BUG STYLE
       set -l c (rg -c "^F-.*\[$sev\]" $argv[1] 2>/dev/null; or grep -c "^F-.*\[$sev\]" $argv[1] 2>/dev/null; or echo 0)
+      set c $c[-1]
       echo "$sev: $c"
     end
   ' -- "$O"
-  echo "TOTAL: $(rg -c '^F-' "$O" 2>/dev/null || grep -c '^F-' "$O" 2>/dev/null || echo 0)"
+  echo "TOTAL: $({ rg -c '^F-' "$O" 2>/dev/null || grep -c '^F-' "$O" 2>/dev/null || echo 0; } | tail -1)"
   ```
 
 STEP 2: SUMMARY TABLE

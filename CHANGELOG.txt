@@ -1,6 +1,75 @@
 FISH AUDIT PROMPT — CHANGELOG
 ==============================
 
+v3.7.32 (2026-03-18): Sync with ry-install v3.7.32. +1 check (293 → 294).
+  1 new check, 3 data collection updates, 1 new key lesson.
+
+  New check (297):
+    297: _find_pacnew_files sudo -n (non-interactive credential safety)
+
+  Data collection updates (3):
+    - _find_pacnew SUDO -N: extracts _find_pacnew_files body, greps sudo
+    - DRY GATE: added sudo -n to exclusion list (read-only, non-interactive)
+    - PARALLEL BARE SUDO: added sudo -n to exclusion list
+
+  Check updates (2):
+    - 173: added sudo -n note to _find_pacnew_files description
+    - 176: added sudo -n note to inline pacnew helper description
+
+  New key lesson (1): 297 — sudo -n for read-only helpers
+
+v3.7.31 (2026-03-18): External audit. 0 new checks (293 → 293).
+  2 findings (0 CRIT, 0 HIGH, 1 MED, 1 LOW).
+
+  F-1: [MED] Duplicate _py_extract calls waste CPU in parallel groups:
+       _py_extract "$F" "do_test_all" called twice (lines 572-573, GROUP C2)
+       and _py_extract "$F" "_do_cleanup" called twice (lines 732, 735,
+       GROUP D). Each call re-parses the entire script file through
+       python3 depth-tracking extraction. Violates "Never re-read same
+       region twice" rule. Fixed: extract once to shell variable, reuse
+       via printf '%s\n' pipe for subsequent rg filtering.
+
+  F-2: [LOW] PASS2 STEP2 VERSION comparison captures all lines:
+       VER_OUT=$(sed 's/^v//' "$D/ver-out.txt") stores entire file
+       content. If --version outputs multi-line (banner + version),
+       comparison against VER_GLOBAL (single line) always fails with
+       false MISMATCH. Fixed: head -n 1 before sed to extract first
+       line only, matching --version stdout contract (single version
+       string).
+
+  Verified not bugs (5):
+    - PASS2 Group B $mode intentional word-splitting: documented v3.7.25/v3.7.29.
+    - GROUP_EXIT captures last-command only: documented v3.7.25 F-3.
+    - _py_extract export -f before parallel forks: correct bash pattern.
+    - PASS1 EMPTY SECTION GUARD linenum from grep: header guaranteed
+      present since guard iterates headers extracted from same file.
+    - No missing -- separators: all rg -cF/rg -nF calls with dash
+      patterns use -- (lines 641, 677, 1935, 2022, 2034).
+
+v3.7.30 (2026-03-18): External audit. 0 new checks (293 → 293).
+  2 findings (0 CRIT, 0 HIGH, 1 MED, 1 LOW).
+
+  F-1: [MED] PASS3 collation double-output on 0-match severities:
+       both per-severity fish -c block and TOTAL bash line produce "0 0"
+       when count is 0. Root cause: grep -c outputs "0" (exit 1), then
+       `; or echo 0` / `|| echo 0` also outputs "0". Fish captures as
+       list ("0" "0"). Introduced by v3.7.26 F-3 + v3.7.29 F-1 (same
+       bug class). Fixed: `set c $c[-1]` in fish block; `| tail -1` in
+       TOTAL bash line and PASS 2 DRY-RUN [DRY] messages line.
+
+  F-2: [LOW] PASS2 ANSI check unnecessary PCRE2 flag: rg -cP used for
+       \x1b\[ pattern but \x1b is valid Rust regex (no PCRE2 needed).
+       Adds fragility when PCRE2 unavailable. Fixed: rg -c (no -P).
+
+  Verified not bugs (6):
+    - CHANGELOG v3.7.24-v3.7.29 same date: rapid iteration day. Correct.
+    - _py_extract else handling two patterns: both correct for Fish semantics.
+    - PASS 2 $mode unquoted word-splitting: intentional (documented v3.7.25).
+    - p14.txt guard checks -s not partial writes: theoretical, mitigated
+      by SIZE GATE + EMPTY SECTION GUARD.
+    - Numeric var init list manual maintenance: has Re-derive procedure.
+    - head -N output caps silent truncation: documented design choice.
+
 v3.7.29 (2026-03-17): Audit prompt external audit. 0 new checks (293 → 293).
   5 findings (0 CRIT, 0 HIGH, 3 MED, 2 LOW).
 
