@@ -219,7 +219,7 @@ v3.7.26 (2026-03-17): Audit prompt self-audit. 0 new checks (293 → 293).
 v3.7.25 (2026-03-17): Audit prompt self-audit. 0 new checks (293 → 293).
   4 findings (0 CRIT, 0 HIGH, 1 MED, 3 LOW), 1 info.
 
-  F-1: [MED] CHANGELOG v3.7.23 infra lessons: "GROUP_D BRACE EXPANSION"
+  F-1: [MED] CHANGELOG infra lessons: "GROUP_D BRACE EXPANSION"
        listed twice in the 5-entry list (lines 100-102). Only 4 unique
        lessons existed. Fixed: removed duplicate, corrected count 5 → 4
        in summary line, section header, and list.
@@ -276,7 +276,7 @@ v3.7.24 (2026-03-17): Audit prompt self-review. 0 new checks (293 → 293).
        alternation). Pattern '; and \|; or ' matched literal string
        "; and |; or " instead of "; and " OR "; or ". Always returned
        0 (false negative). Same bug class as F6 (v3.7.13) — 12
-       patterns were fixed then but this one was introduced in v3.7.23.
+       patterns were fixed then but this one was introduced later.
        Fixed: '; and |; or ' (unescaped pipe for alternation).
 
   F-2: [HIGH] V3723 BASH AND-OR rg pattern (GROUP D line 741): regex
@@ -309,10 +309,10 @@ v3.7.24 (2026-03-17): Audit prompt self-review. 0 new checks (293 → 293).
       recovery manifests for truncated data. Not a defect.
 
   New audit infra lesson (1):
-    GROUP_D  AND-OR STYLE/BASH AND-OR: v3.7.23 introduced 2 new rg
-             patterns with the same escaped-pipe bug class fixed in
-             F6 (v3.7.13). Root cause: the 12 patterns fixed in F6
-             were found by systematic grep; the v3.7.23 additions
+    GROUP_D  AND-OR STYLE/BASH AND-OR: 2 new rg patterns introduced
+             with the same escaped-pipe bug class fixed in F6
+             (v3.7.13). Root cause: the 12 patterns fixed in F6
+             were found by systematic grep; the later additions
              were written after F6 was closed and not re-checked.
              Prevention: after adding ANY single-quoted rg pattern
              with |, verify: echo 'pattern' | cat -A shows unescaped

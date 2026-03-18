@@ -1,7 +1,7 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
 Version: 3.7.32
-Derived from: ry-install.fish v3.7.23 audit (2026-03-17)
+Derived from: ry-install.fish v3.7.32 audit (2026-03-18)
 Checks: 294
 Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.32)
 
@@ -154,7 +154,7 @@ KEY LESSONS (sorted by check number):
            code2). v30.0.0: removed _ps, _regdom_ps. v31.0.0: no change.
            v3.7.13: removed verify_status, missing, _bl_loaded (diagnose
            cleanup + dead code removal), stayed at 32 local vars.
-           v3.7.23: added actual_count, mismatches, num_workers, start_idx,
+           Added actual_count, mismatches, num_workers, start_idx,
            total_dsts; removed record_idx. Now at 36 local vars.
            Excludes Fish builtins ($status) and script
            globals (MAX_LOGS) — extractor checks set -l
@@ -265,7 +265,7 @@ KEY LESSONS (sorted by check number):
              jobs including sudo keepalive. Must guard with
              `count $pids` before `wait $pids` for potentially-empty
              pid lists. Named PIDs (unconditionally forked) are safe.
-    GROUP_E  REDUNDANT COLLECTION: v3.7.23 added PARALLEL ECHO STATUS
+    GROUP_E  REDUNDANT COLLECTION: a prior release added PARALLEL ECHO STATUS
              and FISH-C DQ INJECTION to GROUP E, duplicating V3723
              ECHO STATUS and V3723 FISH-C INJECTION already in GROUP D.
              Redundancy wastes output budget and SIZE GATE allowance.
@@ -617,7 +617,7 @@ for line in lines:
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v3.7.23 specifics ──
+  # ── GROUP D: P14 v3.1.0–v3.7.32 specifics ──
   ( (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -901,7 +901,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
   # ── Post-wait data guard (D and E collect independently; E's ──
   # ── P13 analysis reads p14.txt for 11 shared patterns)       ──
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.7.23 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.7.32 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -920,7 +920,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14 (v3.1.0-v3.7.23 specifics)" ;;
+        p14)    phases="P14 (v3.1.0-v3.7.32 specifics)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -972,7 +972,7 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phase 14 (version specifics v3.1.0-v3.7.23)
+    p14.txt   → Phase 14 (version specifics v3.1.0-v3.7.32)
     Phase 15 deep checks use data from ALL files above (not just p14.txt).
 
   If p14.txt is missing or truncated, mark shared-pattern P13
@@ -1319,7 +1319,7 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-296,
+  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-297,
   P15 → #215-233, P12 → #239-253.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
@@ -1339,7 +1339,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v3.7.23 Specifics (87 checks) ──────────
+─── Phase 14: v3.1.0–v3.7.32 Specifics (88 checks) ──────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1631,7 +1631,7 @@ STEP 2: ANALYZE ON DISK
                race between concurrent read-only instances. Falls back
                to bare xargs when flock absent.
 
-  14.22 v3.7.14–v3.7.23 FIXES (8 checks)
+  14.22 v3.7.14+ REGRESSION FIXES (9 checks)
        [ ] 289. fish -c injection safety: 0 double-quoted fish -c bodies
                with variable interpolation (rg 'fish -c "' → 0 hits).
                All 13 fish -c calls use single-quoted bodies with $argv
@@ -1655,17 +1655,16 @@ STEP 2: ANALYZE ON DISK
                min(N, nproc) bounded workers. verify_static: min(4, nproc).
                do_diff: nproc batch throttle. do_test_all: 3-tier
                (nproc<8 sequential, 8-15 batch, 16+ full). Regression
-               from v3.7.15 (verify_static), v3.7.17 (do_diff), v3.7.23
-               (verify_static nproc cap).
+               from v3.7.15 (verify_static), v3.7.17 (do_diff),
+               later verify_static nproc cap.
        [ ] 295. install_file post-write symlink re-check: test -L after tee
                and before chmod/mv in both sudo and user paths (4 total
                check sites). Closes TOCTOU between pre-write guard and
-               write. Regression from v3.7.23.
+               write. Regression from install_file refactor.
        [ ] 296. Deprecated test operators: 0 test -o / test -a usage
                (rg 'test .* -o |test .* -a ' → 0). Fish idiomatic
                "; or" / "; and" used instead. Regression from v3.7.21.
 
-  14.23 v3.7.32 FIX (1 check)
        [ ] 297. _find_pacnew_files uses sudo -n (non-interactive): no
                credential prompts in dry-run or read-only contexts.
                rg 'sudo -n' in _find_pacnew_files body → 1 hit.
