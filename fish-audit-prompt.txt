@@ -1,6 +1,6 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.7.24
+Version: 3.7.28
 Derived from: ry-install.fish v3.7.23 audit (2026-03-17)
 Checks: 293
 Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.23)
@@ -114,6 +114,7 @@ KEY LESSONS (sorted by check number):
            pre-write symlink guard and tee/chmod/mv
       296  Fish test -o / test -a are deprecated POSIX extensions; use
            idiomatic "; or" / "; and"
+  AUDIT INFRA (not a check):
       P3   Static analysis misses execution-order bugs
 
   AUDIT INFRA LESSONS (sorted by audit prompt section):
@@ -262,6 +263,11 @@ KEY LESSONS (sorted by check number):
              jobs including sudo keepalive. Must guard with
              `count $pids` before `wait $pids` for potentially-empty
              pid lists. Named PIDs (unconditionally forked) are safe.
+    GROUP_E  REDUNDANT COLLECTION: v3.7.23 added PARALLEL ECHO STATUS
+             and FISH-C DQ INJECTION to GROUP E, duplicating V3723
+             ECHO STATUS and V3723 FISH-C INJECTION already in GROUP D.
+             Redundancy wastes output budget and SIZE GATE allowance.
+             Removed in v3.7.27.
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -788,8 +794,10 @@ for i, line in enumerate(lines, 1):
         continue
     if not func: continue
     opened = False
-    for kw in ['if ','for ','while ','switch ','begin','function ']:
+    for kw in ['if ','for ','while ','switch ','function ']:
         if s.startswith(kw): depth += 1; scope_stack.append({}); opened = True; break
+    if not opened and (s == 'begin' or s.startswith('begin ') or s.startswith('begin;')):
+        depth += 1; scope_stack.append({}); opened = True
     if s == 'end':
         if depth > 1:
             if scope_stack: scope_stack.pop()
@@ -865,11 +873,18 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
     done 2>&1
     echo "=== PARALLEL BARE SUDO ===" && rg -n 'sudo ' "$F" | rg -v '_run|_ensure_sudo|#|sudo true|sudo -k|SUDO_KEEPALIVE|keepalive' | head -20
     echo "=== PARALLEL CHILD SOURCE ===" && rg -n 'source.*funcs|functions.*needed' "$F" | head -10
-    echo "=== PARALLEL ECHO STATUS ===" && rg -n 'echo \$status' "$F" | rg -v '#' | head -10
-    echo "=== FISH-C DQ INJECTION ===" && rg -n 'fish -c "' "$F" | rg -v '#' | head -10
   ) > "$D/p13.txt" 2>&1; echo "GROUP_E_EXIT=$?" >> "$D/p13.txt" ) &
 
   wait
+
+  # ── Verify parallel group exit status ──
+  for f in "$D"/*.txt; do
+    fname=$(basename "$f" .txt)
+    exit_val=$(grep -oP 'GROUP_\w+_EXIT=\K[0-9]+' "$f" 2>/dev/null | tail -1)
+    if [ -n "$exit_val" ] && [ "$exit_val" != "0" ]; then
+      echo "[INFO] GROUP EXIT: $fname exited $exit_val — some data collection commands failed" >> "$O"
+    fi
+  done
 
   # ── Post-wait data guard (D and E collect independently; E's ──
   # ── P13 analysis reads p14.txt for 11 shared patterns)       ──
@@ -893,7 +908,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14-P15 (v3.1.0-v3.7.23 specifics, deep checks)" ;;
+        p14)    phases="P14 (v3.1.0-v3.7.23 specifics)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -945,7 +960,8 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phases 14-15 (version specifics v3.1.0-v3.7.23, deep checks)
+    p14.txt   → Phase 14 (version specifics v3.1.0-v3.7.23)
+    Phase 15 deep checks use data from ALL files above (not just p14.txt).
 
   If p14.txt is missing or truncated, mark shared-pattern P13
   checks (234-238) as DEFERRED. If p13.txt is missing, mark P13
@@ -1781,17 +1797,18 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   cat "$D"/exit-b{1,2,3,4}.txt > "$D/exit-codes.txt"
 
   # Group C: dry-run + lint + test-all stderr
-  (
-    stat -c '%n %Y' /etc/modprobe.d/* 2>/dev/null | sort > "$D/pre-dry.txt"
+  ( # C1: dry-run filesystem safety
+    # Monitor all managed parent directories, not just modprobe.d
+    _dry_dirs="/etc/modprobe.d /etc/systemd /etc/kernel /etc/NetworkManager /etc/iwd /etc/sysctl.d"
+    for _dd in $_dry_dirs /etc/mkinitcpio.conf; do stat -c '%n %Y' "$_dd" "$_dd"/* 2>/dev/null; done | sort > "$D/pre-dry.txt"
     timeout "$RUNTIME_TIMEOUT" fish "$S" --dry-run >"$D/dry-out.txt" 2>"$D/dry-err.txt"
-    stat -c '%n %Y' /etc/modprobe.d/* 2>/dev/null | sort > "$D/post-dry.txt"
+    for _dd in $_dry_dirs /etc/mkinitcpio.conf; do stat -c '%n %Y' "$_dd" "$_dd"/* 2>/dev/null; done | sort > "$D/post-dry.txt"
     diff "$D/pre-dry.txt" "$D/post-dry.txt" > "$D/dry-diff.txt"
   ) &
-  (
+  ( # C2: lint
     timeout "$RUNTIME_TIMEOUT" fish "$S" --lint >"$D/lint-out.txt" 2>"$D/lint-err.txt"
   ) &
-  (
-    # Extended timeout for test-all (spawns 19 fish subprocesses); capture stderr for analysis
+  ( # C3: test-all (extended timeout — spawns 19 fish subprocesses); capture stderr for analysis
     timeout 90 fish "$S" --test-all >/dev/null 2>"$D/test-all-err.txt"
   ) &
   wait
@@ -1828,14 +1845,18 @@ STEP 2: ANALYSIS
   S=/home/claude/audit-src/script.fish
   D=/home/claude/audit-data/runtime
   echo "=== STDERR BYTES (expect 0) ===" && wc -c "$D"/{help,h,ver,v}-err.txt
+  echo "=== HELP STDOUT (expect >0) ===" && wc -c "$D"/{help,h}-out.txt
   echo "=== EXIT CODES ===" && bat --plain "$D/exit-codes.txt" 2>/dev/null || cat "$D/exit-codes.txt"
   echo "=== ANSI (expect 0) ===" && { rg -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || grep -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || echo "none"; }
   echo "=== DRY-RUN FS (expect empty) ===" && bat --plain "$D/dry-diff.txt" 2>/dev/null || cat "$D/dry-diff.txt"
+  echo "=== DRY-RUN [DRY] MESSAGES (expect present) ===" && rg -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || grep -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || echo "0"
+  echo "=== OP MODE STDOUT BYTES (expect 0) ===" && wc -c "$D"/{dry-out,lint-out}.txt 2>/dev/null
   echo "=== LINT ===" && bat --plain "$D/lint-err.txt" 2>/dev/null || cat "$D/lint-err.txt"
   echo "=== REDIRECT ===" && bat --plain "$D/redirect-err.txt" 2>/dev/null || cat "$D/redirect-err.txt"
   echo "=== HELP 141 (expect hit) ===" && bat --plain "$D/help-141.txt" 2>/dev/null || cat "$D/help-141.txt"
   echo "=== TEST-ALL STDERR (always examine) ===" && bat --plain "$D/test-all-err.txt" 2>/dev/null || cat "$D/test-all-err.txt" 2>/dev/null || echo "not yet collected"
   echo "=== VERSION CONTENT ===" && { VER_OUT=$(sed 's/^v//' "$D/ver-out.txt"); VER_GLOBAL=$(rg -oP 'VERSION "\K[^"]+' "$S" 2>/dev/null || rg -o 'VERSION "[^"]+' "$S" | sed 's/VERSION "//'); echo "stdout: $VER_OUT"; echo "global: $VER_GLOBAL"; test "$VER_OUT" = "$VER_GLOBAL" && echo "MATCH" || echo "MISMATCH"; }
+  echo "=== FLAG EQUIVALENCE ===" && { diff "$D/help-out.txt" "$D/h-out.txt" >/dev/null 2>&1 && echo "--help/-h: MATCH" || echo "--help/-h: MISMATCH"; diff "$D/ver-out.txt" "$D/v-out.txt" >/dev/null 2>&1 && echo "--version/-v: MATCH" || echo "--version/-v: MISMATCH"; }
   ```
 
 STEP 3: CHECKLIST
@@ -1892,7 +1913,7 @@ STEP 1: COLLATE
   test -s "$O" || echo "WARNING: No findings" > "$O"
   fish -c '
     for sev in CRITICAL HIGH MED LOW INFO BUG STYLE
-      set -l c (rg -c "^F-.*\[$sev\]" $argv[1] 2>/dev/null; or echo 0)
+      set -l c (rg -c "^F-.*\[$sev\]" $argv[1] 2>/dev/null; or grep -c "^F-.*\[$sev\]" $argv[1] 2>/dev/null; or echo 0)
       echo "$sev: $c"
     end
   ' -- "$O"
@@ -1929,6 +1950,8 @@ STEP 2: SUMMARY TABLE
                       193, 257, 259, 260, 263, 268, 273, 283,
                       289, 290, 291, 292, 296 (regressions)
     WARN not exit 2   247 (modifier-only flags)
+    Timeout exit     124 from timeout(1) if mode exceeds RUNTIME_TIMEOUT;
+                      retry with higher timeout or mark DEFERRED
     Examine stderr    --test-all exit 1 on non-target: always inspect
                       stderr output, do not categorize as "container-adjusted"
                       without reading actual failure messages (v3.4.1 lesson)
@@ -1941,7 +1964,8 @@ STEP 2: SUMMARY TABLE
 STEP 3: SPEC FILE
 
   SEVERITY: CRITICAL (data loss/security) | HIGH (functional bug) |
-  MED (correctness) | LOW (style) | INFO (observation)
+  MED (correctness) | LOW (style) | INFO (observation) |
+  BUG (logic/regression) | STYLE (formatting/convention)
 
   Per finding: F-N | Severity | Phase | Checks | Lines | Category | Detail | Fix
 

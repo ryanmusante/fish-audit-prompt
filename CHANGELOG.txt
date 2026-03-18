@@ -1,6 +1,160 @@
 FISH AUDIT PROMPT — CHANGELOG
 ==============================
 
+v3.7.28 (2026-03-17): Audit prompt self-audit pass 2. 0 new checks (293 → 293).
+  4 findings (0 CRIT, 1 HIGH, 2 MED, 1 LOW).
+
+  F-1: [HIGH] CHANGELOG missing v3.7.27 entry: prompt and README were
+       bumped to v3.7.27 but CHANGELOG latest entry was v3.7.26.
+       Version history desync. Fixed: added v3.7.27 entry below.
+
+  F-2: [MED] PASS2 STEP2 help stdout content not verified: check 239
+       requires "--help: stdout content, 0 stderr" but analysis only
+       checked stderr=0 via wc -c. help-out.txt and h-out.txt were
+       never tested for non-empty content. Fixed: added wc -c on
+       {help,h}-out.txt (expect >0).
+
+  F-3: [MED] PASS2 -h/--help and -v/--version equivalence not tested:
+       both short and long forms tested independently (exit codes,
+       stderr bytes) but never diffed to verify identical output.
+       Fixed: added diff between help-out/h-out and ver-out/v-out
+       with MATCH/MISMATCH reporting.
+
+  F-4: [LOW] Scope shadow detector 'begin' keyword lacks word boundary:
+       block_re uses begin\b (correct) but keyword list in scope shadow
+       detector used bare 'begin' via startswith(), matching
+       'begin_transaction' or similar identifiers. Other keywords (if,
+       for, while, switch, function) all had trailing space. Fixed:
+       separated begin into explicit word-boundary check matching
+       'begin', 'begin ', and 'begin;'.
+
+  Verified not bugs (4):
+    - PASS3 STEP4 PACKAGE block uses S=, V=, OUT= template variables
+      not defined in that block. Intentional: auditor fills these in.
+    - PROGRESS DEFINED sed extraction: multiline range correctly stops
+      at first line without trailing backslash. Fish continuation syntax.
+    - _py_extract 'else' skip: prevents 'else if' from double-incrementing
+      depth. Correct for Fish semantics.
+    - Check 114 "Prerequisites listed" is about the target script, not
+      the audit prompt README. No conflict with new Prerequisites section.
+
+v3.7.27 (2026-03-17): Audit prompt self-audit. 0 new checks (293 → 293).
+  3 findings (0 CRIT, 0 HIGH, 2 MED, 1 LOW).
+
+  F-1: [MED] PASS2 STEP2 missing dry-run [DRY] message check: check 250
+       says "[DRY] messages, 0 filesystem changes" but analysis only
+       verified filesystem changes (dry-diff.txt). Never checked that
+       dry-err.txt actually contains [DRY] markers. Fixed: added
+       rg -c '[DRY]' on dry-err.txt with grep fallback.
+
+  F-2: [MED] PASS2 STEP2 missing op-mode stdout leak check: check 241
+       says "Op modes: all to stderr, 0 stdout" but analysis never
+       verified that dry-run and lint produced 0 stdout bytes. Fixed:
+       added wc -c on {dry-out,lint-out}.txt (expect 0).
+
+  F-3: [LOW] GROUP E redundant data collection: PARALLEL ECHO STATUS
+       and FISH-C DQ INJECTION patterns in GROUP E duplicated V3723
+       ECHO STATUS and V3723 FISH-C INJECTION already collected in
+       GROUP D. Wasted output budget and SIZE GATE allowance. Fixed:
+       removed redundant patterns from GROUP E. Added infra lesson.
+
+v3.7.26 (2026-03-17): Audit prompt self-audit. 0 new checks (293 → 293).
+  6 findings (0 CRIT, 0 HIGH, 2 MED, 3 LOW, 1 STYLE).
+
+  F-1: [MED] SIZE GATE case p14 label: "P14-P15" contradicted data
+       mapping (fixed in v3.7.25 F-2) which says "Phase 14" with P15
+       using all files. Auditors seeing "P14-P15 truncated" might skip
+       recovery on other data files. Fixed: label now says "P14" only.
+
+  F-2: [MED] PASS2 dry-run FS verification: stat timestamps only
+       monitored /etc/modprobe.d/*, missing 16 of 17 managed paths
+       (/etc/kernel/, /etc/systemd/, /etc/sysctl.d/, etc.). A dry-run
+       accidentally writing elsewhere would pass undetected. Fixed:
+       expanded to cover all managed parent directories.
+
+  F-3: [LOW] PASS3 collation fish -c rg fallback: fish subshells
+       cannot access bash exported function fallbacks from SETUP STEP 2.
+       If rg binary missing, per-severity counts all silently report 0.
+       Fixed: added grep -c fallback inside the fish -c block.
+
+  F-4: [LOW] PASS2 timeout exit code 124 undocumented: all PASS 2
+       modes use timeout(1), which returns 124 on expiry. SPECIAL
+       HANDLING had no entry for 124. Auditors encountering it had no
+       guidance. Fixed: added Timeout exit 124 to SPECIAL HANDLING.
+
+  F-5: [LOW] KEY LESSONS P3 entry breaks sort contract: header says
+       "sorted by check number" but final entry "P3" is a PASS 3 label,
+       not a numeric check. Fixed: prefixed with "AUDIT INFRA" label.
+
+  F-6: [STYLE] PASS2 Group C per-subshell labels: Groups A/B/D/E have
+       per-subshell comments but Group C's 3 backgrounded subshells
+       shared only one header. Fixed: added C1/C2/C3 labels.
+
+  Also added: README Prerequisites section documenting all required
+  tools (fish 3.4+, python3, bash 4.0+, rg, bat, fd) with fallback
+  information.
+
+  Verified not bugs (8):
+    - Phase count "12 static" arithmetic correct (P1-11 + P15).
+    - Check 130-132 gap documented in v3.7.25 I-1.
+    - Unquoted $mode in PASS2 for-loops intentional (v3.7.25 verified).
+    - PASS2 Group D reads help-out.txt after Group A wait. Sequential.
+    - exit-codes.txt append after sequential waits. Safe.
+    - PASS3 fish -c PATH inheritance from parent bash. rg findable.
+    - MSG_SKIP pipe chars in rg -v double-quoted context. Correct.
+    - export -f _py_extract in bash subshells. Correct for bash 4+.
+
+v3.7.25 (2026-03-17): Audit prompt self-audit. 0 new checks (293 → 293).
+  4 findings (0 CRIT, 0 HIGH, 1 MED, 3 LOW), 1 info.
+
+  F-1: [MED] CHANGELOG v3.7.23 infra lessons: "GROUP_D BRACE EXPANSION"
+       listed twice in the 5-entry list (lines 100-102). Only 4 unique
+       lessons existed. Fixed: removed duplicate, corrected count 5 → 4
+       in summary line, section header, and list.
+
+  F-2: [LOW] DATA FILE → PHASE MAPPING (PASS 1 STEP 2): claimed
+       "p14.txt → Phases 14-15" but P15 deep checks (#215-233) pull
+       data from ALL 7 data files, not just p14.txt. An auditor
+       following the mapping literally would only consult p14.txt for
+       P15 analysis, missing data in p1-3.txt (check 215), p8-9.txt
+       (216-217, 219-220, 232), p10-11.txt (218, 227-228, 229-230),
+       p4-5.txt (222-223), and p13.txt (219, 224-226). Fixed: mapping
+       now says "Phase 14" with explicit note that P15 uses all files.
+
+  F-3: [LOW] GROUP_EXIT dead data: 7 parallel groups write
+       GROUP_*_EXIT=$? to their data files, but no post-wait code reads
+       these values. Silent collection failures (e.g., python3 syntax
+       error in extractor, rg crash) produce truncated data without
+       warning. Post-wait file-size guards (lines 876-881) catch empty
+       files but not partial failures. Fixed: added post-wait loop that
+       reads GROUP_*_EXIT from each data file and logs non-zero exits
+       to audit-findings.txt.
+
+  F-4: [LOW] PASS 3 severity definition: STEP 3 SPEC FILE defines 5
+       severities (CRITICAL, HIGH, MED, LOW, INFO) but STEP 1 collation
+       loop and SUMMARY TABLE template also count BUG and STYLE, which
+       were undefined. An auditor using BUG or STYLE tags would see them
+       tallied but they lacked documented semantics. Fixed: added BUG
+       (logic/regression) and STYLE (formatting/convention) to severity
+       definition.
+
+  I-1: [INFO] Check numbers 130-132 unused. The check range note
+       (line 1294) documents P1-11 as #1-129,133-170 but does not
+       explain the gap. These numbers were likely consumed by removed
+       checks in earlier versions. No action needed.
+
+  Verified not bugs (5):
+    - Scope shadow detector escape layers: 4 raw backslashes in file →
+      2 after bash double-quote → 2 in Python raw string → 1 literal
+      backslash in regex lookbehind. Correct.
+    - rg patterns on lines 473/548/741: all correct post-v3.7.24 fixes.
+    - Unquoted $mode in PASS 2 for-loops: intentional word splitting for
+      multi-word mode strings like "--diff --lint".
+    - _py_extract body extraction: correctly omits function declaration
+      and final end, outputs body only.
+    - Parallel wait accounting: 7 PASS 1 groups → 1 wait; PASS 2 has
+      5 wait points covering all backgrounded processes.
+
 v3.7.24 (2026-03-17): Audit prompt self-review. 0 new checks (293 → 293).
   3 findings from external analysis, 2 confirmed bugs + 1 doc fix.
   5 initial findings withdrawn after verification (false positives).
@@ -55,7 +209,7 @@ v3.7.24 (2026-03-17): Audit prompt self-review. 0 new checks (293 → 293).
 v3.7.23 (2026-03-17): Sync with ry-install v3.7.23. +8 checks (285 → 293).
   Covers 10 patch versions (v3.7.14–v3.7.23) of ry-install fixes.
   16 new GROUP D data collection patterns. 2 new GROUP E patterns.
-  14 metric updates. 5 new audit infra lessons. 1 new Phase 14 section
+  14 metric updates. 4 new audit infra lessons. 1 new Phase 14 section
   (14.22). PASS 2 exit code matrix expanded. SPECIAL HANDLING updated.
 
   New checks (289–296):
@@ -96,10 +250,9 @@ v3.7.23 (2026-03-17): Sync with ry-install v3.7.23. +8 checks (285 → 293).
     - PASS 2 Group B2: added --install-file relative/path test
     - SPECIAL HANDLING: added 289-292, 296 to Expect 0 hits list
 
-  New audit infra lessons (5):
+  New audit infra lessons (4):
     GROUP_D FISH-C INJECTION, GROUP_D BRACE EXPANSION,
-    GROUP_E PARALLEL STATUS, GROUP_E WAIT GUARD,
-    GROUP_D BRACE EXPANSION
+    GROUP_E PARALLEL STATUS, GROUP_E WAIT GUARD
 
   New key lessons (8): 289–296 covering fish-c injection, brace
     expansion, parallel status capture, glob cancellation, wait guard,

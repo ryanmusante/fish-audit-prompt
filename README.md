@@ -1,10 +1,10 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.7.24-blue?style=flat-square)
+![version](https://img.shields.io/badge/version-3.7.28-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
 
-Derived from `ry-install.fish` v3.7.23 · 293 checks across 15 phases · Prompt v3.7.24
+Derived from `ry-install.fish` v3.7.23 · 293 checks across 15 phases · Prompt v3.7.28
 
 ## Overview
 
@@ -52,7 +52,7 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 
 | File | Description |
 |------|-------------|
-| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.24) |
+| `fish-audit-prompt.txt` | The complete audit prompt (v3.7.28) |
 | `CHANGELOG.txt` | Version history with per-finding details |
 | `README.md` | This file |
 
@@ -67,12 +67,30 @@ Each audit produces:
 
 | Version | Checks | ry-install | Summary |
 |---------|--------|------------|---------|
+| v3.7.28 | 293 | v3.7.23 | 4 fixes: CHANGELOG sync, help stdout verify, flag equivalence, scope shadow begin boundary |
+| v3.7.27 | 293 | v3.7.23 | 3 fixes: PASS2 dry-run/stdout analysis, GROUP E redundancy removal, infra lesson |
+| v3.7.26 | 293 | v3.7.23 | 6 fixes: SIZE GATE label, dry-run FS coverage, rg fallback, timeout doc, P3 sort, Group C labels |
+| v3.7.25 | 293 | v3.7.23 | 4 fixes: data mapping, GROUP_EXIT verify, severity def, CHANGELOG dedup |
 | v3.7.24 | 293 | v3.7.23 | 2 rg pattern fixes (AND-OR escaped pipe), README group count fix |
 | v3.7.23 | 293 | v3.7.23 | +8 checks, 16 new GROUP D patterns, 5 new infra lessons |
 | v3.7.13 | 285 | v3.7.13 | Unified versioning, 6 data collection bug fixes |
 | v25–v31.2.1 | 254–285 | v2.x–v3.7.1 | 22 releases |
 
 See [`CHANGELOG.txt`](CHANGELOG.txt) for per-finding details.
+
+## Prerequisites
+
+| Tool | Version | Purpose | Fallback |
+|------|---------|---------|----------|
+| fish | 3.4+ | Runtime tests (PASS 2), syntax validation | PASS 2 skipped if < 3.4 |
+| python3 | 3.6+ | Function body extraction, depth-tracking analysis | None (required) |
+| bash | 4.0+ | Data collection scripts, SETUP fallbacks | None (required) |
+| rg (ripgrep) | any | Pattern matching across all phases | `grep -P` (auto-fallback) |
+| bat | any | Paged file display during analysis | `cat` (auto-fallback) |
+| fd | any | File discovery | `find` (auto-fallback) |
+| fish_indent | (bundled with fish) | Check 215 canonical formatting | DEFERRED if missing |
+
+SETUP STEP 1 installs fish, ripgrep, fd-find, and bat via apt. STEP 2 defines bash function fallbacks for rg, bat, and fd when binaries are unavailable.
 
 ## Usage
 
