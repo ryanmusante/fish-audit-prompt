@@ -1,13 +1,13 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.8.1-blue?style=flat-square)
-![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
-![checks](https://img.shields.io/badge/checks-321-brightgreen?style=flat-square)
+![version](https://img.shields.io/badge/version-3.9.0-blue)
+![license](https://img.shields.io/badge/license-MIT-green)
+![fish](https://img.shields.io/badge/fish-3.4%2B-orange)
+![checks](https://img.shields.io/badge/checks-330-brightgreen)
 
 A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, and multi-mode dispatch with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
 
-Derived from `ry-install.fish` v3.44.0 · 321 checks across 15 phases · Prompt v3.8.1
+Derived from `ry-install.fish` v3.46.0 · 330 checks across 15 phases · Prompt v3.9.0
 
 [changelog](CHANGELOG.md)
 
@@ -20,14 +20,13 @@ Derived from `ry-install.fish` v3.44.0 · 321 checks across 15 phases · Prompt 
 - [Usage](#usage)
 - [Deliverables](#deliverables)
 - [Files](#files)
-- [Version History](#version-history)
 - [License](#license)
 
 ## Metrics
 
 | Metric | Value |
 |---|---|
-| Total checks | 321 (306 static + 15 runtime) |
+| Total checks | 330 (315 static + 15 runtime) |
 | Phases | 15 (12 static · 1 runtime · 1 gap analysis · 1 version-specifics) |
 | Passes | 3 (gather+analyze · runtime · finalize) |
 | Audit infra lessons | 4 (critical infrastructure traps) |
@@ -57,7 +56,7 @@ Derived from `ry-install.fish` v3.44.0 · 321 checks across 15 phases · Prompt 
 | 11 | 14 | Testing and validation |
 | 12 | 15 | Runtime tests |
 | 13 | 5 | Gap analysis |
-| 14 | 115 | Version-specific (v3.1.0–v3.44.0 + Fish 4.0–4.6 compat) |
+| 14 | 124 | Version-specific (v3.1.0–v3.46.0 + Fish 4.0–4.6 compat) |
 | 15 | 19 | Supplemental deep checks |
 
 ## Prerequisites
@@ -89,30 +88,10 @@ Each audit produces:
 
 | File | Description |
 |---|---|
-| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v3.8.1) |
+| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v3.9.0) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history |
 | [`LICENSE`](LICENSE) | MIT license |
 | [`README.md`](README.md) | This file |
-
-## Version History
-
-| Version | Checks | Date | Summary |
-|---|---|---|---|
-| v3.8.1 | 321 | 2026-04-05 | +20 v3.10–v3.44 checks; _ry_ prefix sync; remove KEY LESSONS; sync ry-install v3.44.0 |
-| v3.8.0 | 301 | 2026-04-05 | +7 Fish 4.x checks; hardening preamble; rg 14.1.1 pin |
-| v3.7.32 | 294 | 2026-03-18 | +1 check: sudo -n credential safety |
-| v3.7.31 | 293 | 2026-03-18 | 2 fixes: _py_extract dedup, VERSION guard |
-| v3.7.30 | 293 | 2026-03-18 | 2 fixes: PASS3 collation, ANSI PCRE2 |
-| v3.7.29 | 293 | 2026-03-17 | 5 fixes: grep fallback, budget, timeout, stdout, glob |
-| v3.7.28 | 293 | 2026-03-17 | 4 fixes: sync, help verify, flag equiv, scope |
-| v3.7.27 | 293 | 2026-03-17 | 3 fixes: dry-run, GROUP E dedup, infra lesson |
-| v3.7.26 | 293 | 2026-03-17 | 6 fixes: SIZE GATE, dry-run FS, rg, timeout, sort |
-| v3.7.25 | 293 | 2026-03-17 | 4 fixes: data map, GROUP_EXIT, severity, dedup |
-| v3.7.24 | 293 | 2026-03-17 | 3 fixes: escaped pipe rg patterns, README count |
-| v3.7.23 | 293 | 2026-03-17 | +8 checks, 16 GROUP D patterns |
-| v3.7.13 | 285 | 2026-03-16 | Unified versioning, 12 fixes |
-
-See [`CHANGELOG.md`](CHANGELOG.md) for full details.
 
 ## License
 

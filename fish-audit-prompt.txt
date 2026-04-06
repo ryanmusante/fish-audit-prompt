@@ -1,15 +1,15 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.8.1
-Derived from: ry-install.fish v3.44.0 audit (2026-04-05)
-Checks: 321
-Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.44.0+4.x)
+Version: 3.9.0
+Derived from: ry-install.fish v3.46.0 audit (2026-04-06)
+Checks: 330
+Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.46.0+4.x)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
 ───────────────────────────────────────────────────────────────
 
-321-check audit (306 static + 15 runtime) for production fish scripts managing system config,
+330-check audit (315 static + 15 runtime) for production fish scripts managing system config,
 sudo, credentials, embedded configs, and multi-mode dispatch with
 verification subsystems.
 
@@ -104,7 +104,7 @@ STEP 3: SAVE CHECKLIST TO DISK
 
   PASS 2 runtime count verification (inline in PASS 2 section):
     grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 15.
-    Total: 306 + 15 = 321.
+    Total: 315 + 15 = 330.
 
   Read phases on demand during analysis:
     bat --plain -r START:END /home/claude/audit-data/checklist.txt
@@ -395,7 +395,7 @@ for line in lines:
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v3.44.0 specifics ──
+  # ── GROUP D: P14 v3.1.0–v3.46.0 specifics ──
   ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -630,6 +630,15 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V3100 STRING COLLECT ===" && rg -n 'string collect' "$F" | head -10
     echo "=== V3100 ZRAM CHECK ===" && rg -n 'zram\|ZRAM' "$F" | head -10
     echo "=== V3100 LVM MASK ===" && rg -n 'lvm\|LVM\|lvs ' "$F" | head -10
+    echo "=== V3450 PREEMPT ===" && rg -n 'preempt|Dynamic Preempt' "$F" | head -10
+    echo "=== V3450 PAGE LOCK REMOVED ===" && rg -n 'page_lock_unfairness' "$F" | head -5
+    echo "=== V3450 NETDEV BACKLOG ===" && rg -n 'netdev_max_backlog' "$F" | head -5
+    echo "=== V3450 SOMAXCONN ===" && rg -n 'somaxconn' "$F" | head -5
+    echo "=== V3450 SYSCTL PRIORITY ===" && rg -n 'priority 99|priority.*override' "$F" | head -5
+    echo "=== V3460 SPLIT M1 ===" && rg -n 'string split -m1' "$F" | head -10
+    echo "=== V3460 NOATIME DEDUP ===" && rg -n 'noatime.*already\|already.*noatime\|match.*noatime' "$F" | head -10
+    echo "=== V3460 USBHID REMOVED ===" && rg -n 'usbhid' "$F" | head -5
+    echo "=== V3460 COREDUMP VERIFY ===" && rg -n 'Storage=none\|ProcessSizeMax\|coredump.*verify\|verify.*coredump' "$F" | head -10
   ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
   # ── GROUP E: P13 gap analysis (race/error/edge tracing) ──
@@ -700,7 +709,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
   # ── Post-wait data guard (D and E collect independently; E's ──
   # ── P13 analysis reads p14.txt for 11 shared patterns)       ──
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.44.0 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.46.0 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -719,7 +728,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14 (v3.1.0-v3.44.0 specifics)" ;;
+        p14)    phases="P14 (v3.1.0-v3.46.0 specifics)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -772,7 +781,7 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phase 14 (version specifics v3.1.0-v3.44.0)
+    p14.txt   → Phase 14 (version specifics v3.1.0-v3.46.0)
     Phase 15 deep checks use data from ALL files above (not just p14.txt).
 
   If p14.txt is missing or truncated, mark shared-pattern P13
@@ -1141,7 +1150,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v3.44.0 Specifics (115 checks) ──────────
+─── Phase 14: v3.1.0–v3.46.0 Specifics (124 checks) ──────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1500,7 +1509,7 @@ STEP 2: ANALYZE ON DISK
                Scripts relying on brace expansion with single-word items
                adjacent to { } blocks may break.
 
-  14.24 v3.10.0–v3.44.0 CHANGES (20 checks)
+  14.24 v3.10.0–v3.46.0 CHANGES (29 checks)
        [ ] 305. _install_fstab_opts: atomic fstab modification. Reads
                /etc/fstab, adds noatime,lazytime to ext4 entries via sed,
                writes to tmpfile, validates with findmnt --verify, then mv.
@@ -1561,6 +1570,36 @@ STEP 2: ANALYZE ON DISK
        [ ] 324. All SYSTEM_DESTINATIONS and case patterns quoted (v3.37.2):
                16 destinations + case branches consistently quoted.
                coredump.conf.d/sysctl.d destinations present (v3.32.0+).
+       [ ] 325. preempt=full kernel param added (v3.45.0): KERNEL_PARAMS
+               14→15. Present in KERNEL_PARAMS array, cmdline content
+               via _ry_get_file_content, and comment block. Runtime
+               verify checks dmesg 'Dynamic Preempt: full'.
+       [ ] 326. vm.page_lock_unfairness=1 removal (v3.45.0): 0 references
+               in SYSCTL_VALUES, _ry_get_file_content sysctl section,
+               and /proc/sys/ runtime checks. Kernel default is optimal.
+       [ ] 327. netdev_max_backlog value 300000→16384 (v3.45.0): verify
+               SYSCTL_VALUES entry matches _ry_get_file_content output.
+               Runtime verify reads /proc/sys/net/core/netdev_max_backlog.
+       [ ] 328. somaxconn=8192 addition (v3.45.0): verify in SYSCTL_VALUES
+               and sysctl content generator. Runtime verify reads
+               /proc/sys/net/core/somaxconn.
+       [ ] 329. sysctl.conf header priority-99 override note (v3.45.0):
+               _ry_get_file_content sysctl case includes comment
+               "priority 99 — overrides" in generated header.
+       [ ] 330. string split -m1 '=' in sysctl content and verify
+               (v3.46.0): prevents splitting on values containing '='.
+               3 call sites: _ry_get_file_content sysctl loop,
+               _ry_verify_static env check, _ry_verify_runtime sysctl.
+       [ ] 331. noatime dedup in _install_fstab_opts (v3.46.0): checks
+               existing noatime before appending. Prevents double
+               noatime on re-runs. string match -q '*noatime*' guard.
+       [ ] 332. usbhid.mousepoll=1 removal (v3.46.0): 0 references in
+               KERNEL_PARAMS. KERNEL_PARAMS stays 15 (preempt=full
+               replaced usbhid.mousepoll net count).
+       [ ] 333. coredump.conf.d semantic checks in --verify-static
+               (v3.46.0): Storage=none and ProcessSizeMax=0 verified
+               against deployed file content. Catch silent regression
+               if conf.d file overwritten by package update.
 
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
