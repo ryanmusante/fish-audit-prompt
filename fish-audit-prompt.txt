@@ -1,15 +1,15 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.7.32
+Version: 3.8.0
 Derived from: ry-install.fish v3.7.32 audit (2026-03-18)
-Checks: 294
-Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.32)
+Checks: 301
+Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.7.32+4.x)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
 ───────────────────────────────────────────────────────────────
 
-294-check audit (279 static + 15 runtime) for production fish scripts managing system config,
+301-check audit (286 static + 15 runtime) for production fish scripts managing system config,
 sudo, credentials, embedded configs, and multi-mode dispatch with
 verification subsystems.
 
@@ -292,7 +292,12 @@ STEP 1: COPY + TOOLS
   wc -l /home/claude/audit-src/script.fish
 
   apt-get update -q 2>/dev/null && \
-    apt-get install -y fish ripgrep fd-find bat 2>/dev/null; true
+    apt-get install -y fish fd-find bat 2>/dev/null; true
+  # Pin rg >= 14.1.1: Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884
+  if ! rg --version 2>/dev/null | grep -qE '14\.1\.[1-9]|14\.[2-9]|1[5-9]\.|[2-9][0-9]\.'; then
+    curl -sLO https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep_14.1.1-1_amd64.deb && \
+      dpkg -i ripgrep_14.1.1-1_amd64.deb && rm -f ripgrep_14.1.1-1_amd64.deb
+  fi
   for pair in "fdfind fd" "batcat bat"; do
     set -- $pair; src="$1" dst="$2"
     if command -v "$src" >/dev/null 2>&1 && ! command -v "$dst" >/dev/null 2>&1; then
@@ -321,11 +326,19 @@ STEP 2: FALLBACKS (bash-only — do not fish-ify)
   }
   command -v fd  >/dev/null 2>&1 || fd() { local pat="$1"; shift; find "$@" -name "$pat" 2>/dev/null; }
   export -f rg bat fd 2>/dev/null; true
+
+  # ── Hardening defaults (applied after STEP 2, before data collection) ──
+  export LC_ALL=C.UTF-8                    # Reproducible coreutils output (F-6)
+  export PYTHONUTF8=1                      # UTF-8 file I/O in Python 3.12 (F-7)
+  export RIPGREP_CONFIG_PATH=""            # Ignore inherited .ripgreprc (F-13)
+  export PATH='/usr/local/bin:/usr/bin:/bin' # Sanitized PATH (F-15)
+  unset CDPATH BASH_ENV ENV 2>/dev/null; true
+  umask 077                                # Owner-only temp files (F-18)
   ```
 
 STEP 3: SAVE CHECKLIST TO DISK
 
-  Save the 278-check static analysis checklist (phases 1-11, 13-15;
+  Save the 286-check static analysis checklist (phases 1-11, 13-15;
   phase 12's 15 runtime checks are inline in PASS 2) from the
   CHECKLIST REFERENCE section (at end of this document) to
   /home/claude/audit-data/checklist.txt.
@@ -334,11 +347,11 @@ STEP 3: SAVE CHECKLIST TO DISK
   "CHECKLIST REFERENCE" header through end of Phase 15, then write
   that content to /home/claude/audit-data/checklist.txt via
   create_file or bash heredoc. Copy verbatim — do not regenerate or
-  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 278.
+  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 286.
 
   PASS 2 runtime count verification (inline in PASS 2 section):
     grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 15.
-    Total: 278 + 15 = 293.
+    Total: 286 + 15 = 301.
 
   Read phases on demand during analysis:
     bat --plain -r START:END /home/claude/audit-data/checklist.txt
@@ -365,6 +378,12 @@ RULES:
   Blocked → DEFERRED, continue. Save after EVERY pass. Max 3 retries.
   Never re-read same region twice. >10 items → sub-chunks of 5.
   Write findings: echo "F-N ..." >> /home/claude/audit-findings.txt
+
+EVIDENCE RULE:
+  For every finding, cite exact file:line or data excerpt that supports it.
+  If no supporting evidence exists in the collected data, mark as UNVERIFIED.
+  Never infer findings without data. Prefer 0 findings to 1 fabricated finding.
+  Findings lacking evidence will be rejected during PASS 3 collation.
 
 TOOL MANDATES:
   RUST FIRST    rg over grep, fd over find, bat over cat/less.
@@ -426,8 +445,11 @@ STALL PREVENTION:
   5. Verdict: "incomplete — N/15 phases completed"
 
   CHECKPOINT after each pass:
-    Save findings to disk. Report: "Checkpoint: N findings,
-    phases [list] complete, [list] remaining."
+    Save findings to disk. Report structured state:
+    "Checkpoint: N findings [F-1:L42:C5, F-2:L108:C14, ...],
+    phases [list] complete, [list] remaining.
+    Carry-forward: VERSION=X, FUNC_COUNT=Y, SET_L_COUNT=Z."
+    Dedup: if a finding ID (file:line:check) already exists, skip.
 
 PASS ORDER:
   PASS 1 — GATHER+ANALYZE  phases 1-11, 13-15  (collect → analyze on
@@ -457,7 +479,7 @@ STEP 1: DATA COLLECTION
 
   # ── Python3 helper for function body extraction (primary; fish -c fails on some versions) ──
   _py_extract() {
-    python3 -c "
+    python3 -ISc "
 import re, sys
 target = sys.argv[2]; F = sys.argv[1]
 lines = open(F).readlines()
@@ -485,8 +507,11 @@ for line in lines:
   MSG_SKIP='_run|_log|_dry|_fail|_err|_warn|_ok|_info|_echo|_msg|_ask'
   export MSG_SKIP
 
+  # ── Cleanup trap: kill orphaned background children on interrupt (F-19) ──
+  trap 'kill $(jobs -p) 2>/dev/null; wait' EXIT INT TERM
+
   # ── GROUP A1: P1-3 syntax, routing, errors ──
-  ( (
+  ( set -uo pipefail; (
     echo "=== BASHISMS ===" && rg -n '\$\(|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | head -30
     echo "=== FISH_INDENT ===" && if command -v fish_indent >/dev/null 2>&1; then fish_indent --check "$F" 2>&1; echo "exit: $?"; else echo "UNAVAILABLE (fish_indent not found — check 216 DEFERRED)"; fi
     echo "=== STRING OPS ===" && rg -n 'string (match|replace|split|join|trim)' "$F" | rg -v ' -- ' | head -30
@@ -500,16 +525,16 @@ for line in lines:
   ) > "$D/p1-3.txt" 2>&1; echo "GROUP_A1_EXIT=$?" >> "$D/p1-3.txt" ) &
 
   # ── GROUP A2: P4-5 vars, security ──
-  ( (
+  ( set -uo pipefail; (
     echo "=== SCOPE ===" && rg -n 'set -[glx]|set --erase|set --global|set --local' "$F" | head -50
     echo "=== FOR LOOPS ===" && rg -n 'for .* in ' "$F" | head -30
-    echo "=== INJECTION ===" && rg -n 'eval|source ' "$F" | head -20
+    echo "=== INJECTION ===" && rg -n '\beval\b|source ' "$F" | head -20
     echo "=== CHK_GREP IMPL ===" && _py_extract "$F" "_chk_grep" | rg 'grep' | head -10
     echo "=== CREDS ===" && rg -ni 'password|passphrase|credential|secret|WIFI_PASS' "$F" | head -20
     echo "=== PERMS ===" && rg -n 'chmod|chown|0600|0644|0700|0755' "$F" | head -30
     echo "=== SUDO ===" && rg -n 'sudo |_IS_ROOT' "$F" | head -30
     echo "=== EXT CMDS ===" && rg -n 'command -q|command -v' "$F" | head -30
-    echo "=== NUMERIC VAR INIT ===" && python3 -c "
+    echo "=== NUMERIC VAR INIT ===" && python3 -ISc "
 import subprocess, sys; F = sys.argv[1]
 # Excludes Fish builtins (\$status) and script globals (MAX_LOGS) — always initialized by runtime/top-level set -g
 for v in '_boot_rc _flock_rc _log_count actual_count bad_perms case_count checked code dir_bad dir_checked errors failed fixed_count i idx_a idx_b install_status line_count mask_count mismatches mode_count next_i next_i2 num_workers pac_managed_bad pad perm_bad perm_checked read_ok reload_wait ret start_idx steps_count total_dsts total_err wifi_retry'.split():
@@ -520,7 +545,7 @@ for v in '_boot_rc _flock_rc _log_count actual_count bad_perms case_count checke
   ) > "$D/p4-5.txt" 2>&1; echo "GROUP_A2_EXIT=$?" >> "$D/p4-5.txt" ) &
 
   # ── GROUP B: P6-7 embedded configs, cross-refs ──
-  ( (
+  ( set -uo pipefail; (
     echo "=== CONFIG FORMATS ===" && rg -n '\[Unit\]|\[Service\]|\[Install\]' "$F" | head -20
     echo "=== SYSTEMD ===" && rg -n 'ExecStart|After=|Type=' "$F" | head -20
     echo "=== UDEV ===" && rg -n 'ACTION==|SUBSYSTEM==|ATTR[{]|KERNEL==' "$F" | head -20
@@ -532,9 +557,9 @@ for v in '_boot_rc _flock_rc _log_count actual_count bad_perms case_count checke
   ) > "$D/p6-7.txt" 2>&1; echo "GROUP_B_EXIT=$?" >> "$D/p6-7.txt" ) &
 
   # ── GROUP C1: P8-9 architecture, patterns ──
-  ( (
+  ( set -uo pipefail; (
     echo "=== FUNCTIONS ===" && rg -n '^function |^end$' "$F" | head -50
-    echo "=== FUNC LENGTHS ===" && python3 -c "
+    echo "=== FUNC LENGTHS ===" && python3 -ISc "
 import re, sys
 lines = open(sys.argv[1]).readlines()
 fn = None; fstart = 0; depth = 0
@@ -567,7 +592,7 @@ for i, line in enumerate(lines, 1):
   ) > "$D/p8-9.txt" 2>&1; echo "GROUP_C1_EXIT=$?" >> "$D/p8-9.txt" ) &
 
   # ── GROUP C2: P10-11 magic numbers, docs, testing ──
-  ( (
+  ( set -uo pipefail; (
     echo "=== MAGIC NUMS ===" && rg -n 'TEMP_|DISK_|BOOT_|MAX_|CACHE_|ROOT_AVAIL|NVME_LIFE' "$F" | head -30
     echo "=== DRY ===" && rg -n 'DRY|dry.run|--dry-run|\[DRY\]' "$F" | head -20
     echo "=== TEST_ALL ===" && rg -n 'do_test_all|verify.static|verify.runtime' "$F" | head -20
@@ -577,7 +602,7 @@ for i, line in enumerate(lines, 1):
     echo "=== PRE-LOCK ===" && rg -n 'case install-file|case install|_acquire_lock' "$F" | head -20
     echo "=== PROGRESS DEFINED ===" && sed -n '/set -g PROGRESS_STEPS/,/^[^\\]*$/p' "$F" | rg -o '"[^"]*"' | tr -d '"' | sort | head -30
     echo "=== PROGRESS CALLED ===" && { rg '_progress "' "$F" | rg -v '#|function|grep' | rg -oP '(?<=_progress ")[^"]+' 2>/dev/null || rg '_progress "' "$F" | rg -v '#|function|grep' | sed 's/.*_progress "//' | sed 's/".*//'; } | sort | head -30
-    echo "=== COMPLETIONS FLAGS ===" && python3 - "$F" << 'PYEOF'
+    echo "=== COMPLETIONS FLAGS ===" && python3 -IS - "$F" << 'PYEOF'
 import re, sys
 lines = open(sys.argv[1]).readlines()
 cap = False; depth = 0; flags = set()
@@ -598,7 +623,7 @@ for line in lines:
             flags.add(m)
 for f in sorted(flags): print(f)
 PYEOF
-    echo "=== DISPATCH CASES ===" && python3 -c "
+    echo "=== DISPATCH CASES ===" && python3 -ISc "
 import re, sys
 lines = open(sys.argv[1]).readlines()
 past = False
@@ -618,7 +643,7 @@ for line in lines:
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
   # ── GROUP D: P14 v3.1.0–v3.7.32 specifics ──
-  ( (
+  ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
     echo "=== _verify_unit_syntax ===" && rg -n '_verify_unit_syntax' "$F" | head -10
@@ -660,7 +685,7 @@ for line in lines:
     echo "=== STRING MATCH SEPARATOR ===" && rg -n "string match.*' -- '" "$F" | head -10
     echo "=== SECTION HEADERS ===" && rg -nc '^# ── ' "$F"
     echo "=== SECTION HEADER LINES ===" && rg -n '^# ── ' "$F" | head -25
-    echo "=== FUNCTION COMMENT COVERAGE ===" && python3 -c "
+    echo "=== FUNCTION COMMENT COVERAGE ===" && python3 -ISc "
 import re, sys
 lines = open(sys.argv[1]).readlines()
 n = 0; cmt = 0
@@ -671,14 +696,14 @@ for i, line in enumerate(lines, 1):
 fcount = sum(1 for l in lines if re.match(r'^function ', l))
 print(f'{n}/{fcount} functions with nearby comment')
 " "$F" 2>&1
-    echo "=== COMMAND PREFIX ===" && python3 -c "
+    echo "=== COMMAND PREFIX ===" && python3 -ISc "
 import subprocess, sys; F = sys.argv[1]
 for cmd in 'rm mv cp chmod chown mkdir'.split():
     r = subprocess.run(['rg', '-c', f'command {cmd}', F], capture_output=True, text=True)
     print(f'{cmd}: {r.stdout.strip() or \"0\"}')
 " "$F" 2>&1
     echo "=== ARGUMENT NAMES ===" && rg -n -- '--argument-names' "$F" | head -20
-    echo "=== IN-FUNCTION GLOBALS ===" && python3 -c "
+    echo "=== IN-FUNCTION GLOBALS ===" && python3 -ISc "
 import re, sys
 lines = open(sys.argv[1]).readlines()
 fn = None; depth = 0; count = 0
@@ -760,7 +785,7 @@ print(f'{count} in-function set -g')
     echo "=== V3723 LOCK DOUBLE VERIFY ===" && rg -n 'verify_pid2|sleep 0.1' "$F" | head -10
     echo "=== V3723 MKTEMP DEGRADED ===" && rg -n '_MKTEMP_DEGRADED_WARNED' "$F" | head -5
     echo "=== V3723 RUN STDOUT CAP ===" && rg -n 'STDOUT_TRUNCATED' "$F" | head -5
-    echo "=== INLINE COMMENT DENSITY ===" && python3 -c "
+    echo "=== INLINE COMMENT DENSITY ===" && python3 -ISc "
 import re, sys
 lines = open(sys.argv[1]).readlines()
 fn = None; depth = 0; fstart = 0; results = []
@@ -786,7 +811,7 @@ for fn, l, c in sorted(results, key=lambda x: x[2]):
     print(f'{fn:<45} {l:>4}L  {c} inline comments')
 print(f'Total: {len(results)} functions >50 lines')
 " "$F" 2>&1
-    echo "=== SCOPE SHADOW DETECTOR ===" && python3 -c "
+    echo "=== SCOPE SHADOW DETECTOR ===" && python3 -ISc "
 import re, sys
 lines = open(sys.argv[1]).readlines()
 func = None; depth = 0; scope_stack = []; in_string = False; issues = []
@@ -828,6 +853,13 @@ for i, line in enumerate(lines, 1):
 for x in issues: print(x)
 print(f'Total: {len(issues)} scope shadow(s)')
 " "$F" 2>&1 | head -30
+    echo "=== FISH4 QMARK GLOB ===" && rg -n '\?' "$F" | rg -v '#|string|rg|grep|awk|sed|printf|echo' | head -10
+    echo "=== FISH4 BIND -K ===" && rg -n 'bind -k' "$F" | head -10
+    echo "=== FISH4 COMMANDLINE TOKENIZE ===" && rg -n 'commandline.*--tokenize|commandline.* -o ' "$F" | head -10
+    echo "=== FISH4 PERCENT SELF ===" && rg -n '%self' "$F" | head -10
+    echo "=== FISH4 TEST -N UNQUOTED ===" && rg -n 'test -n \$[a-z]' "$F" | rg -v '"' | head -10
+    echo "=== FISH4 SET -U FISH_COLOR ===" && rg -n 'set -U fish_color' "$F" | head -10
+    echo "=== FISH4 BRACE COMPOUND ===" && rg -n '^\s*{$|^\s*}$' "$F" | head -10
   ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
   # ── GROUP E: P13 gap analysis (race/error/edge tracing) ──
@@ -836,8 +868,8 @@ print(f'Total: {len(issues)} scope shadow(s)')
   # BOOT_SANITY, etc.) are collected in GROUP D's p14.txt.
   # GROUP E collects independent data to p13.txt; both files are
   # cross-referenced during STEP 2 ANALYZE.
-  ( (
-    echo "=== TMPFILE LIFECYCLE ===" && python3 -c "
+  ( set -uo pipefail; (
+    echo "=== TMPFILE LIFECYCLE ===" && python3 -ISc "
 import re, sys
 lines = open(sys.argv[1]).readlines()
 fn = None; depth = 0; body = []
@@ -864,7 +896,7 @@ for line in lines:
     echo "=== SORT LOCALE ===" && rg -n 'sort' "$F" | rg -v '#|LC_ALL' | head -20
     echo "=== SIGPIPE BODY ===" && _py_extract "$F" "_cleanup_pipe" | head -20
     echo "=== DOTFILE GLOB ===" && rg -n 'rm -rf.*\*' "$F" | rg -v '#' | head -5
-    echo "=== BARE COREUTILS ===" && python3 -c "
+    echo "=== BARE COREUTILS ===" && python3 -ISc "
 import subprocess, sys, re, os
 F = sys.argv[1]
 msg_skip = os.environ.get('MSG_SKIP', '').split('|')
@@ -927,7 +959,8 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
       echo "[INFO] SIZE GATE: $f ($phases) truncated from $lines to 500 lines — affected phase checks may have incomplete data" >> "$O"
       # ── Recovery manifest: list lost sections for targeted re-collection ──
       grep '^=== .* ===$' "$f" > "$D/${fname}-full-sections.txt"
-      head -500 "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+      # Skeleton extraction: keep all section headers + first 5 data lines per section
+      awk '/^=== .* ===$/{header=1;count=0;print;next} header{count++;if(count<=5)print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
       grep '^=== .* ===$' "$f" > "$D/${fname}-kept-sections.txt"
       comm -23 <(sort "$D/${fname}-full-sections.txt") <(sort "$D/${fname}-kept-sections.txt") > "$D/${fname}-lost.txt"
       lost_count=$(wc -l < "$D/${fname}-lost.txt")
@@ -1319,7 +1352,7 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-297,
+  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-304,
   P15 → #215-233, P12 → #239-253.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
@@ -1339,7 +1372,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v3.7.32 Specifics (88 checks) ──────────
+─── Phase 14: v3.1.0–v3.7.32 Specifics (95 checks) ──────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1671,6 +1704,33 @@ STEP 2: ANALYZE ON DISK
                rg 'sudo [^-]' in _find_pacnew_files body → 0 hits.
                Regression from v3.7.32.
 
+  14.23 FISH 4.0–4.6 COMPATIBILITY (7 checks)
+       NOTE: Gate on detected Fish version. Fish 4.0 (2025-02) is a Rust
+       rewrite with breaking changes. These checks apply only when auditing
+       scripts targeting Fish 4.x or when the audit environment runs Fish 4.x.
+
+       [ ] 298. qmark-noglob: Fish 4.0 enables qmark-noglob by default.
+               Bare ? in glob patterns is treated as literal, not single-char
+               wildcard. rg '\?' in glob context → flag for 4.0+ compat.
+       [ ] 299. bind -k removal: Fish 4.1 fully removed bind -k terminfo
+               key names. rg 'bind -k' → 0 hits required on 4.1+ targets.
+               Replacement: Fish key notation (e.g., bind ctrl-right).
+       [ ] 300. commandline --tokenize deprecated: Fish 4.0 deprecated
+               --tokenize/-o in favor of --tokens-expanded/-x.
+               rg 'commandline.*--tokenize|commandline.*-o ' → 0 hits.
+       [ ] 301. %self deprecated: Fish 4.0 feature flag remove-percent-self.
+               rg '%self' → 0 hits. Replacement: $fish_pid.
+       [ ] 302. test -n arg requirement: Fish 4.0 test-require-arg flag
+               changes unquoted test -n $var behavior. Bare test -n $var
+               (without quotes) is now a bug. rg 'test -n \$[a-z]' → 0 hits.
+       [ ] 303. fish_color_* scope change: Fish 4.3 changed fish_color_*
+               from universal to global scope. set -U fish_color_* in
+               config is now ineffective. rg 'set -U fish_color' → 0 hits.
+       [ ] 304. Brace compound commands: Fish 4.1 added { } compound
+               commands. {echo,echo} is no longer brace expansion.
+               Scripts relying on brace expansion with single-word items
+               adjacent to { } blocks may break.
+
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
   15.1 FORMATTING
@@ -1964,10 +2024,10 @@ STEP 2: SUMMARY TABLE
    10     | 11     |      |      |
    11     | 14     |      |      |
    13     | 5      |      |      |
-   14     | 87     |      |      |
+   14     | 95     |      |      |
    15     | 19     |      |      |
    12     | 15     |      |      |
-  TOTAL  | 293    |      |      |
+  TOTAL  | 301    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 

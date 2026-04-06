@@ -1,397 +1,113 @@
-FISH AUDIT PROMPT — CHANGELOG
-==============================
+fish-audit-prompt changelog
+===========================
 
-v3.7.32 (2026-03-18): Sync with ry-install v3.7.32. +1 check (293 → 294).
-  1 new check, 3 data collection updates, 1 new key lesson.
+3.8.0 (2026-04-05)
 
-  New check (297):
-    297: _find_pacnew_files sudo -n (non-interactive credential safety)
+  301 checks (286 static + 15 runtime). +7 checks, 13 infra improvements.
 
-  Data collection updates (3):
-    - _find_pacnew SUDO -N: extracts _find_pacnew_files body, greps sudo
-    - DRY GATE: added sudo -n to exclusion list (read-only, non-interactive)
-    - PARALLEL BARE SUDO: added sudo -n to exclusion list
+  New checks:
+    - 298: qmark-noglob default-on (Fish 4.0)
+    - 299: bind -k terminfo names removed (Fish 4.1)
+    - 300: commandline --tokenize/-o deprecated (Fish 4.0)
+    - 301: %self deprecated → $fish_pid (Fish 4.0)
+    - 302: test -n unquoted arg behavior change (Fish 4.0)
+    - 303: fish_color_* scope universal → global (Fish 4.3)
+    - 304: brace compound commands vs brace expansion (Fish 4.1)
 
-  Check updates (2):
-    - 173: added sudo -n note to _find_pacnew_files description
-    - 176: added sudo -n note to inline pacnew helper description
+  Data collection:
+    - add 7 Fish 4.x pattern searches to GROUP D
+    - add \beval\b word boundary on injection check in GROUP A2
 
-  New key lesson (1): 297 — sudo -n for read-only helpers
+  Infrastructure:
+    - pin rg >= 14.1.1 (false-negative bug #2884 in 14.1.0)
+    - add EVIDENCE RULE grounding directive to RULES section
+    - add set -uo pipefail to all 7 GROUP subshells
+    - add export LC_ALL=C.UTF-8, PYTHONUTF8=1, RIPGREP_CONFIG_PATH=""
+    - change python3 -c to python3 -ISc (isolation + no site-packages)
+    - add PATH sanitization, umask 077, trap EXIT/INT/TERM
+    - enhance checkpoint with finding IDs and carry-forward state
+    - replace SIZE GATE head -500 with skeleton extraction
 
-v3.7.31 (2026-03-18): External audit. 0 new checks (293 → 293).
-  2 findings (0 CRIT, 0 HIGH, 1 MED, 1 LOW).
+  Count fixes:
+    - STEP 3 static checklist: 278 → 286 (stale since v3.7.32)
+    - summary table Phase 14: 87 → 95 (stale since v3.7.32)
 
-  F-1: [MED] Duplicate _py_extract calls waste CPU in parallel groups:
-       _py_extract "$F" "do_test_all" called twice (lines 572-573, GROUP C2)
-       and _py_extract "$F" "_do_cleanup" called twice (lines 732, 735,
-       GROUP D). Each call re-parses the entire script file through
-       python3 depth-tracking extraction. Violates "Never re-read same
-       region twice" rule. Fixed: extract once to shell variable, reuse
-       via printf '%s\n' pipe for subsequent rg filtering.
+3.7.32 (2026-03-18)
 
-  F-2: [LOW] PASS2 STEP2 VERSION comparison captures all lines:
-       VER_OUT=$(sed 's/^v//' "$D/ver-out.txt") stores entire file
-       content. If --version outputs multi-line (banner + version),
-       comparison against VER_GLOBAL (single line) always fails with
-       false MISMATCH. Fixed: head -n 1 before sed to extract first
-       line only, matching --version stdout contract (single version
-       string).
+  294 checks. +1 check.
 
-  Verified not bugs (5):
-    - PASS2 Group B $mode intentional word-splitting: documented v3.7.25/v3.7.29.
-    - GROUP_EXIT captures last-command only: documented v3.7.25 F-3.
-    - _py_extract export -f before parallel forks: correct bash pattern.
-    - PASS1 EMPTY SECTION GUARD linenum from grep: header guaranteed
-      present since guard iterates headers extracted from same file.
-    - No missing -- separators: all rg -cF/rg -nF calls with dash
-      patterns use -- (lines 641, 677, 1935, 2022, 2034).
+  - 297: _find_pacnew_files sudo -n non-interactive credential safety
+  - add sudo -n to DRY GATE and PARALLEL BARE SUDO exclusion lists
 
-v3.7.30 (2026-03-18): External audit. 0 new checks (293 → 293).
-  2 findings (0 CRIT, 0 HIGH, 1 MED, 1 LOW).
+3.7.31 (2026-03-18)
 
-  F-1: [MED] PASS3 collation double-output on 0-match severities:
-       both per-severity fish -c block and TOTAL bash line produce "0 0"
-       when count is 0. Root cause: grep -c outputs "0" (exit 1), then
-       `; or echo 0` / `|| echo 0` also outputs "0". Fish captures as
-       list ("0" "0"). Introduced by v3.7.26 F-3 + v3.7.29 F-1 (same
-       bug class). Fixed: `set c $c[-1]` in fish block; `| tail -1` in
-       TOTAL bash line and PASS 2 DRY-RUN [DRY] messages line.
+  293 checks. 2 fixes.
 
-  F-2: [LOW] PASS2 ANSI check unnecessary PCRE2 flag: rg -cP used for
-       \x1b\[ pattern but \x1b is valid Rust regex (no PCRE2 needed).
-       Adds fragility when PCRE2 unavailable. Fixed: rg -c (no -P).
+  - [MED] deduplicate _py_extract calls in GROUP C2 and GROUP D
+  - [LOW] PASS2 VERSION comparison: add head -n 1 for multi-line guard
 
-  Verified not bugs (6):
-    - CHANGELOG v3.7.24-v3.7.29 same date: rapid iteration day. Correct.
-    - _py_extract else handling two patterns: both correct for Fish semantics.
-    - PASS 2 $mode unquoted word-splitting: intentional (documented v3.7.25).
-    - p14.txt guard checks -s not partial writes: theoretical, mitigated
-      by SIZE GATE + EMPTY SECTION GUARD.
-    - Numeric var init list manual maintenance: has Re-derive procedure.
-    - head -N output caps silent truncation: documented design choice.
+3.7.30 (2026-03-18)
 
-v3.7.29 (2026-03-17): Audit prompt external audit. 0 new checks (293 → 293).
-  5 findings (0 CRIT, 0 HIGH, 3 MED, 2 LOW).
+  293 checks. 2 fixes.
 
-  F-1: [MED] PASS3 TOTAL line missing grep -c fallback: per-severity
-       counts use rg → grep → echo 0, but TOTAL uses rg → echo 0.
-       Reports 0 when rg unavailable despite findings. Fixed: added
-       grep -c '^F-' intermediate fallback.
+  - [MED] PASS3 collation: fix grep -c double-output on 0-match
+  - [LOW] PASS2 ANSI check: remove unnecessary PCRE2 flag
 
-  F-2: [LOW] CONTEXT BUDGET header says "tool output" but 3000 budget
-       includes 1400 lines overhead (analysis/reasoning). Auditors
-       misread as 3000 tool-output-only budget. Fixed: "Total context
-       usage must not exceed 3000 lines."
+3.7.29 (2026-03-17)
 
-  F-3: [LOW] test-all timeout hardcoded 90 instead of derived from
-       RUNTIME_TIMEOUT. Changing RUNTIME_TIMEOUT decouples from
-       test-all. Fixed: $((RUNTIME_TIMEOUT * 3)).
+  293 checks. 5 fixes.
 
-  F-4: [MED] PASS2 OP MODE STDOUT check only verifies dry-run and lint
-       (2 of ~10 op modes). Check 241 claims "all to stderr, 0 stdout"
-       but remaining modes have stdout discarded to /dev/null. Fixed:
-       added Group B2 stdout capture for --verify-static, --check,
-       --completions; expanded STEP2 wc -c to include new files.
+  - [MED] PASS3 TOTAL: add grep -c fallback
+  - [MED] PASS2 OP MODE STDOUT: add Group B2 for 3 more modes
+  - [MED] EMPTY SECTION GUARD: narrow glob to p*.txt
+  - [LOW] CONTEXT BUDGET: clarify 3000 total
+  - [LOW] test-all timeout: derive from RUNTIME_TIMEOUT
 
-  F-5: [MED] EMPTY SECTION GUARD "$D"/*.txt glob processes SIZE GATE
-       recovery files (*-full-sections.txt, *-kept-sections.txt,
-       *-lost.txt) as data files. Generates ~220 false [INFO] EMPTY
-       SECTION markers when p14.txt truncated. Fixed: narrowed glob
-       to "$D"/p*.txt.
+3.7.28 (2026-03-17)
 
-  Verified not bugs (12):
-    - else handling: two correct patterns for different extractor contexts.
-    - SPECIAL HANDLING expect 0 hits: complete (293-295 correctly excluded).
-    - Scope shadow begin boundary: guarded by check 215.
-    - Check count: 278 static + 15 runtime = 293. Gaps 130-132 documented.
-    - SETUP STEP 3: works for uploaded file and context extraction.
-    - GROUP exit status: last-command only. Documented v3.7.25 F-3.
-    - PASS2 exit code analysis: manual auditor comparison. By design.
-    - PASS2 $mode unquoted: intentional word splitting for multi-word modes.
-    - PASS2 -- stop-parsing: static analysis only. Acceptable.
-    - NO_COLOR stderr-only: correct per output contract (check 205).
-    - PASS1→PASS2 F=/S=: separate bash blocks, independent. Correct.
-    - PASS2 SIGPIPE: printf --, PIPESTATUS[0], /bin/bash -c. Correct.
+  293 checks. 4 fixes.
 
-v3.7.28 (2026-03-17): Audit prompt self-audit pass 2. 0 new checks (293 → 293).
-  4 findings (0 CRIT, 1 HIGH, 2 MED, 1 LOW).
+  - [MED] CHANGELOG: sync with README version table
+  - [LOW] PASS2: add help stdout, flag equivalence, scope shadow begin
 
-  F-1: [HIGH] CHANGELOG missing v3.7.27 entry: prompt and README were
-       bumped to v3.7.27 but CHANGELOG latest entry was v3.7.26.
-       Version history desync. Fixed: added v3.7.27 entry below.
+3.7.27 (2026-03-17)
 
-  F-2: [MED] PASS2 STEP2 help stdout content not verified: check 239
-       requires "--help: stdout content, 0 stderr" but analysis only
-       checked stderr=0 via wc -c. help-out.txt and h-out.txt were
-       never tested for non-empty content. Fixed: added wc -c on
-       {help,h}-out.txt (expect >0).
+  293 checks. 3 fixes.
 
-  F-3: [MED] PASS2 -h/--help and -v/--version equivalence not tested:
-       both short and long forms tested independently (exit codes,
-       stderr bytes) but never diffed to verify identical output.
-       Fixed: added diff between help-out/h-out and ver-out/v-out
-       with MATCH/MISMATCH reporting.
+  - [MED] PASS2 dry-run: expand FS monitoring to all managed dirs
+  - [LOW] GROUP E: remove redundant patterns (duplicated GROUP D)
 
-  F-4: [LOW] Scope shadow detector 'begin' keyword lacks word boundary:
-       block_re uses begin\b (correct) but keyword list in scope shadow
-       detector used bare 'begin' via startswith(), matching
-       'begin_transaction' or similar identifiers. Other keywords (if,
-       for, while, switch, function) all had trailing space. Fixed:
-       separated begin into explicit word-boundary check matching
-       'begin', 'begin ', and 'begin;'.
+3.7.26 (2026-03-17)
 
-  Verified not bugs (4):
-    - PASS3 STEP4 PACKAGE block uses S=, V=, OUT= template variables
-      not defined in that block. Intentional: auditor fills these in.
-    - PROGRESS DEFINED sed extraction: multiline range correctly stops
-      at first line without trailing backslash. Fish continuation syntax.
-    - _py_extract 'else' skip: prevents 'else if' from double-incrementing
-      depth. Correct for Fish semantics.
-    - Check 114 "Prerequisites listed" is about the target script, not
-      the audit prompt README. No conflict with new Prerequisites section.
+  293 checks. 6 fixes: SIZE GATE label, dry-run FS, rg fallback,
+  timeout doc, PASS3 sort, Group C labels.
 
-v3.7.27 (2026-03-17): Audit prompt self-audit. 0 new checks (293 → 293).
-  3 findings (0 CRIT, 0 HIGH, 2 MED, 1 LOW).
+3.7.25 (2026-03-17)
 
-  F-1: [MED] PASS2 STEP2 missing dry-run [DRY] message check: check 250
-       says "[DRY] messages, 0 filesystem changes" but analysis only
-       verified filesystem changes (dry-diff.txt). Never checked that
-       dry-err.txt actually contains [DRY] markers. Fixed: added
-       rg -c '[DRY]' on dry-err.txt with grep fallback.
+  293 checks. 4 fixes: data mapping, GROUP_EXIT, severity def, dedup.
 
-  F-2: [MED] PASS2 STEP2 missing op-mode stdout leak check: check 241
-       says "Op modes: all to stderr, 0 stdout" but analysis never
-       verified that dry-run and lint produced 0 stdout bytes. Fixed:
-       added wc -c on {dry-out,lint-out}.txt (expect 0).
+3.7.24 (2026-03-17)
 
-  F-3: [LOW] GROUP E redundant data collection: PARALLEL ECHO STATUS
-       and FISH-C DQ INJECTION patterns in GROUP E duplicated V3723
-       ECHO STATUS and V3723 FISH-C INJECTION already collected in
-       GROUP D. Wasted output budget and SIZE GATE allowance. Fixed:
-       removed redundant patterns from GROUP E. Added infra lesson.
+  293 checks. 3 fixes.
 
-v3.7.26 (2026-03-17): Audit prompt self-audit. 0 new checks (293 → 293).
-  6 findings (0 CRIT, 0 HIGH, 2 MED, 3 LOW, 1 STYLE).
+  - [HIGH] V3723 BASH AND-OR rg: fix empty alternation matching all lines
+  - [MED] V3723 AND-OR STYLE rg: fix escaped pipe
+  - [LOW] README: correct subshell group count 5 → 7
 
-  F-1: [MED] SIZE GATE case p14 label: "P14-P15" contradicted data
-       mapping (fixed in v3.7.25 F-2) which says "Phase 14" with P15
-       using all files. Auditors seeing "P14-P15 truncated" might skip
-       recovery on other data files. Fixed: label now says "P14" only.
+3.7.23 (2026-03-17)
 
-  F-2: [MED] PASS2 dry-run FS verification: stat timestamps only
-       monitored /etc/modprobe.d/*, missing 16 of 17 managed paths
-       (/etc/kernel/, /etc/systemd/, /etc/sysctl.d/, etc.). A dry-run
-       accidentally writing elsewhere would pass undetected. Fixed:
-       expanded to cover all managed parent directories.
+  293 checks. +8 checks (285 → 293). 16 new GROUP D patterns.
 
-  F-3: [LOW] PASS3 collation fish -c rg fallback: fish subshells
-       cannot access bash exported function fallbacks from SETUP STEP 2.
-       If rg binary missing, per-severity counts all silently report 0.
-       Fixed: added grep -c fallback inside the fish -c block.
+  - 289–296: fish -c injection, brace expansion, parallel status,
+    glob cancellation, wait guard, worker cap, symlink re-check,
+    deprecated test operators
 
-  F-4: [LOW] PASS2 timeout exit code 124 undocumented: all PASS 2
-       modes use timeout(1), which returns 124 on expiry. SPECIAL
-       HANDLING had no entry for 124. Auditors encountering it had no
-       guidance. Fixed: added Timeout exit 124 to SPECIAL HANDLING.
+3.7.13 (2026-03-16)
 
-  F-5: [LOW] KEY LESSONS P3 entry breaks sort contract: header says
-       "sorted by check number" but final entry "P3" is a PASS 3 label,
-       not a numeric check. Fixed: prefixed with "AUDIT INFRA" label.
+  285 checks. Unified version scheme (31.x → 3.7.x). 12 fixes.
 
-  F-6: [STYLE] PASS2 Group C per-subshell labels: Groups A/B/D/E have
-       per-subshell comments but Group C's 3 backgrounded subshells
-       shared only one header. Fixed: added C1/C2/C3 labels.
+  - [HIGH] 12 rg patterns: escaped pipe → alternation
+  - [MED] parallel subshells, --diagnose removal, STRING OPS, globals
+  - [LOW] metrics, SORT LOCALE, TMPFILE extractor, EMPTY SECTION msg
 
-  Also added: README Prerequisites section documenting all required
-  tools (fish 3.4+, python3, bash 4.0+, rg, bat, fd) with fallback
-  information.
-
-  Verified not bugs (8):
-    - Phase count "12 static" arithmetic correct (P1-11 + P15).
-    - Check 130-132 gap documented in v3.7.25 I-1.
-    - Unquoted $mode in PASS2 for-loops intentional (v3.7.25 verified).
-    - PASS2 Group D reads help-out.txt after Group A wait. Sequential.
-    - exit-codes.txt append after sequential waits. Safe.
-    - PASS3 fish -c PATH inheritance from parent bash. rg findable.
-    - MSG_SKIP pipe chars in rg -v double-quoted context. Correct.
-    - export -f _py_extract in bash subshells. Correct for bash 4+.
-
-v3.7.25 (2026-03-17): Audit prompt self-audit. 0 new checks (293 → 293).
-  4 findings (0 CRIT, 0 HIGH, 1 MED, 3 LOW), 1 info.
-
-  F-1: [MED] CHANGELOG infra lessons: "GROUP_D BRACE EXPANSION"
-       listed twice in the 5-entry list (lines 100-102). Only 4 unique
-       lessons existed. Fixed: removed duplicate, corrected count 5 → 4
-       in summary line, section header, and list.
-
-  F-2: [LOW] DATA FILE → PHASE MAPPING (PASS 1 STEP 2): claimed
-       "p14.txt → Phases 14-15" but P15 deep checks (#215-233) pull
-       data from ALL 7 data files, not just p14.txt. An auditor
-       following the mapping literally would only consult p14.txt for
-       P15 analysis, missing data in p1-3.txt (check 215), p8-9.txt
-       (216-217, 219-220, 232), p10-11.txt (218, 227-228, 229-230),
-       p4-5.txt (222-223), and p13.txt (219, 224-226). Fixed: mapping
-       now says "Phase 14" with explicit note that P15 uses all files.
-
-  F-3: [LOW] GROUP_EXIT dead data: 7 parallel groups write
-       GROUP_*_EXIT=$? to their data files, but no post-wait code reads
-       these values. Silent collection failures (e.g., python3 syntax
-       error in extractor, rg crash) produce truncated data without
-       warning. Post-wait file-size guards (lines 876-881) catch empty
-       files but not partial failures. Fixed: added post-wait loop that
-       reads GROUP_*_EXIT from each data file and logs non-zero exits
-       to audit-findings.txt.
-
-  F-4: [LOW] PASS 3 severity definition: STEP 3 SPEC FILE defines 5
-       severities (CRITICAL, HIGH, MED, LOW, INFO) but STEP 1 collation
-       loop and SUMMARY TABLE template also count BUG and STYLE, which
-       were undefined. An auditor using BUG or STYLE tags would see them
-       tallied but they lacked documented semantics. Fixed: added BUG
-       (logic/regression) and STYLE (formatting/convention) to severity
-       definition.
-
-  I-1: [INFO] Check numbers 130-132 unused. The check range note
-       (line 1294) documents P1-11 as #1-129,133-170 but does not
-       explain the gap. These numbers were likely consumed by removed
-       checks in earlier versions. No action needed.
-
-  Verified not bugs (5):
-    - Scope shadow detector escape layers: 4 raw backslashes in file →
-      2 after bash double-quote → 2 in Python raw string → 1 literal
-      backslash in regex lookbehind. Correct.
-    - rg patterns on lines 473/548/741: all correct post-v3.7.24 fixes.
-    - Unquoted $mode in PASS 2 for-loops: intentional word splitting for
-      multi-word mode strings like "--diff --lint".
-    - _py_extract body extraction: correctly omits function declaration
-      and final end, outputs body only.
-    - Parallel wait accounting: 7 PASS 1 groups → 1 wait; PASS 2 has
-      5 wait points covering all backgrounded processes.
-
-v3.7.24 (2026-03-17): Audit prompt self-review. 0 new checks (293 → 293).
-  3 findings from external analysis, 2 confirmed bugs + 1 doc fix.
-  5 initial findings withdrawn after verification (false positives).
-
-  F-1: [MED] V3723 AND-OR STYLE rg pattern (GROUP D line 740): used
-       \| (literal pipe in single-quoted bash) instead of | (rg
-       alternation). Pattern '; and \|; or ' matched literal string
-       "; and |; or " instead of "; and " OR "; or ". Always returned
-       0 (false negative). Same bug class as F6 (v3.7.13) — 12
-       patterns were fixed then but this one was introduced later.
-       Fixed: '; and |; or ' (unescaped pipe for alternation).
-
-  F-2: [HIGH] V3723 BASH AND-OR rg pattern (GROUP D line 741): regex
-       '&&\|||' parsed as alternatives: "&&|" (literal), "" (empty),
-       "" (empty). Empty alternatives match every line regardless of
-       content. After rg -v filter + head -20, produced 20 arbitrary
-       non-comment lines (false positives). Intended: match literal
-       && or literal ||. Fixed: '&&|\|\|' (escaped pipes for literal
-       || in second alternative).
-
-  F-3: [LOW] README.md line 25: claimed "5 subshell groups" but PASS 1
-       data collection has 7 parallel subshell groups (A1, A2, B, C1,
-       C2, D, E). Fixed: "7 subshell groups".
-
-  Withdrawn findings (verified not bugs):
-    - _py_extract fish_indent dependency: analysis is sequential;
-      prompt correctly instructs check 215 verification at analysis
-      time, not collection time. Data collection parallelism is safe.
-    - GROUP E → GROUP D dependency: documented in comments (lines
-      813-818), handled by post-wait file-size guards (lines 874-881),
-      and STEP 2 ANALYZE DEFERRED marking (lines 950-952).
-    - Scope shadow detector escape fragility: current code correct;
-      3-layer escapes verified against actual Python execution. Past
-      bugs (v28.4.0, v28.5.0, v31.2.0) documented as infra lessons.
-    - PCRE2 fallback not implemented: FALSE — all 3 rg -oP/-cP usages
-      (PROGRESS CALLED, ANSI escape, VERSION CONTENT) have || fallbacks
-      to grep -oP or rg -o + sed. All 2 rg -Un usages (CHMOD MV ORDER,
-      UNREACHABLE) have || awk fallbacks.
-    - head -N output caps heuristic: design choice with SIZE GATE
-      recovery manifests for truncated data. Not a defect.
-
-  New audit infra lesson (1):
-    GROUP_D  AND-OR STYLE/BASH AND-OR: 2 new rg patterns introduced
-             with the same escaped-pipe bug class fixed in F6
-             (v3.7.13). Root cause: the 12 patterns fixed in F6
-             were found by systematic grep; the later additions
-             were written after F6 was closed and not re-checked.
-             Prevention: after adding ANY single-quoted rg pattern
-             with |, verify: echo 'pattern' | cat -A shows unescaped
-             pipe at alternation points.
-
-v3.7.23 (2026-03-17): Sync with ry-install v3.7.23. +8 checks (285 → 293).
-  Covers 10 patch versions (v3.7.14–v3.7.23) of ry-install fixes.
-  16 new GROUP D data collection patterns. 2 new GROUP E patterns.
-  14 metric updates. 4 new audit infra lessons. 1 new Phase 14 section
-  (14.22). PASS 2 exit code matrix expanded. SPECIAL HANDLING updated.
-
-  New checks (289–296):
-    289: fish -c injection safety (0 double-quoted fish -c bodies)
-    290: Fish brace expansion (0 {$var} patterns)
-    291: Parallel status capture (0 bare echo $status)
-    292: Fish glob cancellation (0 count "$dir"/* patterns)
-    293: wait guard (count $pids before wait $pids)
-    294: Parallel worker cap (min(N, nproc) bounded)
-    295: install_file post-write symlink re-check (test -L after tee)
-    296: Deprecated test operators (0 test -o / test -a)
-
-  New data collection patterns (GROUP D):
-    V3723 FISH-C INJECTION, V3723 FISH-C SAFE, V3723 BRACE EXPANSION,
-    V3723 ECHO STATUS, V3723 TEST DEPRECATED, V3723 WAIT GUARD,
-    V3723 WAIT COUNT GUARD, V3723 WORKER CAP, V3723 POST-WRITE SYMLINK,
-    V3723 INSTALL-FILE RELPATH, V3723 DIFF BATCH, V3723 AND-OR STYLE,
-    V3723 BASH AND-OR, V3723 LOCK DOUBLE VERIFY, V3723 MKTEMP DEGRADED,
-    V3723 RUN STDOUT CAP
-
-  New data collection patterns (GROUP E):
-    PARALLEL ECHO STATUS, FISH-C DQ INJECTION
-
-  Metric updates (14):
-    - Functions: 80 → 80 (no change)
-    - set -l: ~616 → ~686 (check 204, 213)
-    - In-function set -g: ~134 → ~130 (checks 199, 213)
-    - _run wraps: ≥83 → ≥85 (check 204)
-    - command prefix: ≥126 → ≥138 (check 197)
-    - Comment coverage: 80/80 → 79/80 (check 196)
-    - START markers: 7 → 6 (check 200)
-    - END markers: 8 → 7 (check 200)
-    - Numeric vars: 32 → 36 (check 222); added actual_count,
-      mismatches, num_workers, start_idx, total_dsts; removed record_idx
-    - Check 220: added post-write symlink guard language
-    - Check 244: added --install-file relative/path → exit 2
-    - Check 248: added --install-file relative/path → exit 2
-    - PASS 2 Group B2: added --install-file relative/path test
-    - SPECIAL HANDLING: added 289-292, 296 to Expect 0 hits list
-
-  New audit infra lessons (4):
-    GROUP_D FISH-C INJECTION, GROUP_D BRACE EXPANSION,
-    GROUP_E PARALLEL STATUS, GROUP_E WAIT GUARD
-
-  New key lessons (8): 289–296 covering fish-c injection, brace
-    expansion, parallel status capture, glob cancellation, wait guard,
-    worker cap, post-write symlink, deprecated test operators.
-
-v3.7.13 (2026-03-16): Sync with ry-install v3.7.13. Major update.
-  Unified version scheme (prompt was 31.x, now matches ry-install
-  3.7.x). README badges added. 0 new checks (stayed at 285).
-  6 data collection patterns removed, 10 added. 14 metric updates.
-  4 checks rewritten. 2 checks updated. 1 execution flow fix.
-  6 data collection bugs fixed (F6-F11). 1 audit infra lesson added.
-
-  F1: [MED] PASS 1 data collection groups A1–E ran serially despite
-      parallel intent. Fixed outer subshell wrapping.
-  F2: [MED] --diagnose mode removed in ry-install v3.7.13. Audit
-      prompt updated: 6 patterns removed, checks 254-255/274-275
-      rewritten, test counts updated.
-  F3: [LOW] 14 stale inline metrics updated for v3.7.13.
-  F4: [LOW] 10 new data collection patterns added to GROUP D.
-  F5: [LOW] Checks 182, 192 updated for removed/repurposed functions.
-  F6: [HIGH] 12 rg patterns used \| (literal pipe) instead of |
-      (alternation) in single-quoted bash strings. All 12 produced
-      0 matches on every audit run.
-  F7: [MED] STRING OPS filter removed all --flag lines (false neg).
-  F8: [MED] IN-FUNCTION GLOBALS missed set -ga and set -gx patterns.
-  F9: [MED] TMPFILE LIFECYCLE extractor missed bare function decls.
-  F10:[LOW] SORT LOCALE filter excluded all sort with options.
-  F11:[LOW] EMPTY SECTION GUARD message was misleading.
-
-PRIOR VERSIONS: v25 (254 checks) → v31.2.1 (285 checks), 22 releases.
+Prior: v25 (254 checks) → v31.2.1 (285 checks), 22 releases.
