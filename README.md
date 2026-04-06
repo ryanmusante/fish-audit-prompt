@@ -5,11 +5,23 @@
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
 ![checks](https://img.shields.io/badge/checks-321-brightgreen?style=flat-square)
 
+A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, and multi-mode dispatch with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
+
 Derived from `ry-install.fish` v3.44.0 · 321 checks across 15 phases · Prompt v3.8.1
 
-## Overview
+[changelog](CHANGELOG.md)
 
-A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, and multi-mode dispatch with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
+## Table of Contents
+
+- [Metrics](#metrics)
+- [Audit Structure](#audit-structure)
+- [Phase Coverage](#phase-coverage)
+- [Prerequisites](#prerequisites)
+- [Usage](#usage)
+- [Deliverables](#deliverables)
+- [Files](#files)
+- [Version History](#version-history)
+- [License](#license)
 
 ## Metrics
 
@@ -60,7 +72,7 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 | fd | any | File discovery | `find` (auto-fallback) |
 | fish_indent | bundled | Check 215 canonical formatting | DEFERRED if missing |
 
-> **Note:** rg is pinned to ≥ 14.1.1. Ubuntu 24.04 ships 14.1.0 which has a confirmed false-negative bug ([#2884](https://github.com/BurntSushi/ripgrep/issues/2884)). SETUP STEP 1 installs the pinned version automatically.
+> **Note:** rg is pinned to ≥ 14.1.1. Ubuntu 24.04 ships 14.1.0 which has a confirmed false-negative bug ([BurntSushi/ripgrep#2884](https://github.com/BurntSushi/ripgrep/issues/2884)). SETUP STEP 1 installs the pinned version automatically.
 
 ## Usage
 
@@ -78,7 +90,8 @@ Each audit produces:
 | File | Description |
 |---|---|
 | [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v3.8.1) |
-| [`CHANGELOG.txt`](CHANGELOG.txt) | Version history |
+| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
+| [`LICENSE`](LICENSE) | MIT license |
 | [`README.md`](README.md) | This file |
 
 ## Version History
@@ -99,8 +112,8 @@ Each audit produces:
 | v3.7.23 | 293 | 2026-03-17 | +8 checks, 16 GROUP D patterns |
 | v3.7.13 | 285 | 2026-03-16 | Unified versioning, 12 fixes |
 
-See [`CHANGELOG.txt`](CHANGELOG.txt) for details.
+See [`CHANGELOG.md`](CHANGELOG.md) for full details.
 
 ## License
 
-MIT
+[MIT](LICENSE)
