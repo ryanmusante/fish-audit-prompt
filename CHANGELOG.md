@@ -3,158 +3,66 @@ fish-audit-prompt changelog
 
 3.8.1 (2026-04-05)
 
-- 321 checks (306 static + 15 runtime). +20 checks, lessons cleanup,
-- sync with ry-install v3.44.0.
-
-- New checks (14.24 v3.10.0–v3.44.0):
-- 305: _install_fstab_opts atomic fstab modification.
-- 306: SYSCTL_VALUES 19-entry profile global validation.
-- 307: irqbalance mask + threadirqs kernel param interaction.
-- 308: amdgpu-performance.service removal regression (v3.38.0).
-- 309: wdat_wdt removal from module_blacklist (v3.41.0).
-- 310: ZRAM check flip: enabled, not masked (v3.41.0).
-- 311: EXIT_PREFLIGHT(3) for --check infra failures (v3.37.0).
-- 312: _manifest_write in --diff --fix (v3.37.0).
-- 313: VERIFY_MODE lifecycle in --diff (v3.37.0).
-- 314: sudo -n convention expansion (v3.37.2).
-- 315: IPv6 method=auto in .nmconnection (v3.44.0).
-- 316: SSID '&' in forbidden characters (v3.44.0).
-- 317: '--' separator in grep patterns (v3.44.0).
-- 318: set -q + test -n TMPDIR guard (v3.40.0).
-- 319: string collect before \n escape in _json_str (v3.14.0).
-- 320: _emit_step_time helper extraction (v3.40.0).
-- 321: parallel child stderr 15-line capture (v3.14.0).
-- 322: LVM-aware mask verification (v3.14.0).
-- 323: parallel validation stderr to terminal (v3.37.0).
-- 324: SYSTEM_DESTINATIONS quoted + coredump/sysctl present (v3.32.0+).
-
-- Check updates:
-- 89: convert to amdgpu-performance removal regression.
-- 91: coredump.conf.d now present (added v3.32.0), not regression.
-- 103/104/106: SYSTEM 12→11, SERVICE 2→1, README 17→15 (sync v3.44.0).
-- 175: _check_service_active_enabled → removal (inlined to systemctl).
-- 177: add wdat_wdt, amdgpu-performance, VKD3D_CONFIG removals.
-- 192: _btrfs_pre_snapshot → removal (ext4-only system).
-- 212/213: scope counts (set -l 686→643, bare 313→274, set -g 130→197).
-- 256/258: do_logs decomposition → removal regressions.
-
-- Data collection:
+- 321 checks (306 static + 15 runtime). Sync with ry-install v3.44.0.
+- add 20 checks (305–324): fstab, sysctl, irqbalance, service removals, sudo -n, IPv6, SSID, grep separators, TMPDIR guard, string collect, step timing, parallel stderr, LVM mask, validation stderr, quoted destinations.
+- update 8 checks: amdgpu-performance, coredump.conf.d, file counts, scope counts, do_logs removal.
 - add 17 v3.10–v3.44 pattern searches to GROUP D.
-- remove stale amdgpu-performance from GROUP B DESTINATIONS.
-- remove dead _logs_file_ops/_logs_journal data collection + loop.
-
-- Infrastructure:
-- remove KEY LESSONS section (redundant with check definitions).
-- trim AUDIT INFRA LESSONS from 18 entries to 4.
-- update all version range references v3.7.32 → v3.44.0.
-- rename 42 check descriptions + 7 _py_extract calls for _ry_ prefix.
-- replace _btrfs_pre_snapshot with _install_fstab in HELPER BODIES rg.
-- net: −100 lines from lessons, +70 lines from new checks/patterns.
-
-- Count fixes:
-- STEP 3 static checklist: 286 → 306.
-- summary table Phase 14: 95 → 115, TOTAL: 301 → 321.
-- check ranges P14: add 305-324.
+- remove KEY LESSONS section, trim INFRA LESSONS 18→4.
+- rename 42 check descriptions for _ry_ prefix.
+- fix static checklist count 286→306, total 301→321.
 
 3.8.0 (2026-04-05)
 
-- 301 checks (286 static + 15 runtime). +7 checks, 13 infra
-- improvements.
-
-- New checks:
-- 298: qmark-noglob default-on (Fish 4.0).
-- 299: bind -k terminfo names removed (Fish 4.1).
-- 300: commandline --tokenize/-o deprecated (Fish 4.0).
-- 301: %self deprecated → $fish_pid (Fish 4.0).
-- 302: test -n unquoted arg behavior change (Fish 4.0).
-- 303: fish_color_* scope universal → global (Fish 4.3).
-- 304: brace compound commands vs brace expansion (Fish 4.1).
-
-- Data collection:
+- 301 checks. +7 Fish 4.0–4.6 compatibility checks (298–304).
 - add 7 Fish 4.x pattern searches to GROUP D.
-- add \beval\b word boundary on injection check in GROUP A2.
-
-- Infrastructure:
-- pin rg >= 14.1.1 (false-negative bug #2884 in 14.1.0).
-- add EVIDENCE RULE grounding directive to RULES section.
-- add set -uo pipefail to all 7 GROUP subshells.
-- add export LC_ALL=C.UTF-8, PYTHONUTF8=1, RIPGREP_CONFIG_PATH="".
-- change python3 -c to python3 -ISc (isolation + no site-packages).
+- pin rg >= 14.1.1 (false-negative bug #2884).
+- add EVIDENCE RULE, set -uo pipefail, LC_ALL=C.UTF-8, python3 -ISc.
 - add PATH sanitization, umask 077, trap EXIT/INT/TERM.
-- enhance checkpoint with finding IDs and carry-forward state.
 - replace SIZE GATE head -500 with skeleton extraction.
-
-- Count fixes:
-- STEP 3 static checklist: 278 → 286 (stale since v3.7.32).
-- summary table Phase 14: 87 → 95 (stale since v3.7.32).
+- fix checklist count 278→286, Phase 14 87→95.
 
 3.7.32 (2026-03-18)
 
-- 294 checks. +1 check.
-- 297: _find_pacnew_files sudo -n non-interactive credential safety.
-- add sudo -n to DRY GATE and PARALLEL BARE SUDO exclusion lists.
+- 294 checks. +1: sudo -n credential safety in _find_pacnew_files.
 
 3.7.31 (2026-03-18)
 
-- 293 checks. 2 fixes.
-- MED: deduplicate _py_extract calls in GROUP C2 and GROUP D.
-- LOW: PASS2 VERSION comparison: add head -n 1 for multi-line guard.
+- 293 checks. Deduplicate _py_extract calls; add VERSION guard.
 
 3.7.30 (2026-03-18)
 
-- 293 checks. 2 fixes.
-- MED: PASS3 collation: fix grep -c double-output on 0-match.
-- LOW: PASS2 ANSI check: remove unnecessary PCRE2 flag.
+- 293 checks. Fix grep -c double-output; remove PCRE2 flag.
 
 3.7.29 (2026-03-17)
 
-- 293 checks. 5 fixes.
-- MED: PASS3 TOTAL: add grep -c fallback.
-- MED: PASS2 OP MODE STDOUT: add Group B2 for 3 more modes.
-- MED: EMPTY SECTION GUARD: narrow glob to p*.txt.
-- LOW: CONTEXT BUDGET: clarify 3000 total.
-- LOW: test-all timeout: derive from RUNTIME_TIMEOUT.
+- 293 checks. 5 fixes: grep fallback, stdout modes, glob, budget, timeout.
 
 3.7.28 (2026-03-17)
 
-- 293 checks. 4 fixes.
-- MED: CHANGELOG: sync with README version table.
-- LOW: PASS2: add help stdout, flag equivalence, scope shadow begin.
+- 293 checks. Sync CHANGELOG with README; add PASS2 checks.
 
 3.7.27 (2026-03-17)
 
-- 293 checks. 3 fixes.
-- MED: PASS2 dry-run: expand FS monitoring to all managed dirs.
-- LOW: GROUP E: remove redundant patterns (duplicated GROUP D).
+- 293 checks. Expand dry-run FS monitoring; remove GROUP E dupes.
 
 3.7.26 (2026-03-17)
 
-- 293 checks. 6 fixes: SIZE GATE label, dry-run FS, rg fallback,
-- timeout doc, PASS3 sort, Group C labels.
+- 293 checks. 6 fixes: SIZE GATE, dry-run FS, rg fallback, timeout, sort, labels.
 
 3.7.25 (2026-03-17)
 
-- 293 checks. 4 fixes: data mapping, GROUP_EXIT, severity def, dedup.
+- 293 checks. 4 fixes: data mapping, GROUP_EXIT, severity, dedup.
 
 3.7.24 (2026-03-17)
 
-- 293 checks. 3 fixes.
-- HIGH: V3723 BASH AND-OR rg: fix empty alternation matching all lines.
-- MED: V3723 AND-OR STYLE rg: fix escaped pipe.
-- LOW: README: correct subshell group count 5 → 7.
+- 293 checks. Fix empty alternation in BASH AND-OR rg pattern.
 
 3.7.23 (2026-03-17)
 
-- 293 checks. +8 checks (285 → 293). 16 new GROUP D patterns.
-- 289–296: fish -c injection, brace expansion, parallel status,
-    glob cancellation, wait guard, worker cap, symlink re-check,
-    deprecated test operators.
+- 293 checks. +8 checks (289–296): fish -c injection, brace expansion, parallel status, glob, wait guard, worker cap, symlink, deprecated test operators.
 
 3.7.13 (2026-03-16)
 
-- 285 checks. Unified version scheme (31.x → 3.7.x). 12 fixes.
-- HIGH: 12 rg patterns: escaped pipe → alternation.
-- MED: parallel subshells, --diagnose removal, STRING OPS, globals.
-- LOW: metrics, SORT LOCALE, TMPFILE extractor, EMPTY SECTION msg.
+- 285 checks. Unified version scheme (31.x → 3.7.x). 12 rg pattern fixes.
 
 Prior: v25 (254 checks) → v31.2.1 (285 checks), 22 releases.
