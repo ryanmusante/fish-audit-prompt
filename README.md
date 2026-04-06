@@ -1,11 +1,11 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.8.0-blue?style=flat-square)
+![version](https://img.shields.io/badge/version-3.8.1-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange?style=flat-square)
-![checks](https://img.shields.io/badge/checks-301-brightgreen?style=flat-square)
+![checks](https://img.shields.io/badge/checks-321-brightgreen?style=flat-square)
 
-Derived from `ry-install.fish` v3.7.32 · 301 checks across 15 phases · Prompt v3.8.0
+Derived from `ry-install.fish` v3.44.0 · 321 checks across 15 phases · Prompt v3.8.1
 
 ## Overview
 
@@ -15,11 +15,10 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 
 | Metric | Value |
 |---|---|
-| Total checks | 301 (286 static + 15 runtime) |
+| Total checks | 321 (306 static + 15 runtime) |
 | Phases | 15 (12 static · 1 runtime · 1 gap analysis · 1 version-specifics) |
 | Passes | 3 (gather+analyze · runtime · finalize) |
-| Key lessons | 60+ (indexed by check number) |
-| Audit infra lessons | 40+ (indexed by prompt section) |
+| Audit infra lessons | 4 (critical infrastructure traps) |
 
 ## Audit Structure
 
@@ -46,7 +45,7 @@ A structured, deterministic audit prompt for production Fish shell scripts manag
 | 11 | 14 | Testing and validation |
 | 12 | 15 | Runtime tests |
 | 13 | 5 | Gap analysis |
-| 14 | 95 | Version-specific (v3.1.0–v3.7.32 + Fish 4.0–4.6 compat) |
+| 14 | 115 | Version-specific (v3.1.0–v3.44.0 + Fish 4.0–4.6 compat) |
 | 15 | 19 | Supplemental deep checks |
 
 ## Prerequisites
@@ -78,7 +77,7 @@ Each audit produces:
 
 | File | Description |
 |---|---|
-| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v3.8.0) |
+| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v3.8.1) |
 | [`CHANGELOG.txt`](CHANGELOG.txt) | Version history |
 | [`README.md`](README.md) | This file |
 
@@ -86,6 +85,7 @@ Each audit produces:
 
 | Version | Checks | Date | Summary |
 |---|---|---|---|
+| v3.8.1 | 321 | 2026-04-05 | +20 v3.10–v3.44 checks; _ry_ prefix sync; remove KEY LESSONS; sync ry-install v3.44.0 |
 | v3.8.0 | 301 | 2026-04-05 | +7 Fish 4.x checks; hardening preamble; rg 14.1.1 pin |
 | v3.7.32 | 294 | 2026-03-18 | +1 check: sudo -n credential safety |
 | v3.7.31 | 293 | 2026-03-18 | 2 fixes: _py_extract dedup, VERSION guard |

@@ -1,6 +1,61 @@
 fish-audit-prompt changelog
 ===========================
 
+3.8.1 (2026-04-05)
+
+  321 checks (306 static + 15 runtime). +20 checks, lessons cleanup,
+  sync with ry-install v3.44.0.
+
+  New checks (14.24 v3.10.0–v3.44.0):
+    - 305: _install_fstab_opts atomic fstab modification
+    - 306: SYSCTL_VALUES 19-entry profile global validation
+    - 307: irqbalance mask + threadirqs kernel param interaction
+    - 308: amdgpu-performance.service removal regression (v3.38.0)
+    - 309: wdat_wdt removal from module_blacklist (v3.41.0)
+    - 310: ZRAM check flip: enabled, not masked (v3.41.0)
+    - 311: EXIT_PREFLIGHT(3) for --check infra failures (v3.37.0)
+    - 312: _manifest_write in --diff --fix (v3.37.0)
+    - 313: VERIFY_MODE lifecycle in --diff (v3.37.0)
+    - 314: sudo -n convention expansion (v3.37.2)
+    - 315: IPv6 method=auto in .nmconnection (v3.44.0)
+    - 316: SSID '&' in forbidden characters (v3.44.0)
+    - 317: '--' separator in grep patterns (v3.44.0)
+    - 318: set -q + test -n TMPDIR guard (v3.40.0)
+    - 319: string collect before \n escape in _json_str (v3.14.0)
+    - 320: _emit_step_time helper extraction (v3.40.0)
+    - 321: parallel child stderr 15-line capture (v3.14.0)
+    - 322: LVM-aware mask verification (v3.14.0)
+    - 323: parallel validation stderr to terminal (v3.37.0)
+    - 324: SYSTEM_DESTINATIONS quoted + coredump/sysctl present (v3.32.0+)
+
+  Check updates:
+    - 89: convert to amdgpu-performance removal regression
+    - 91: coredump.conf.d now present (added v3.32.0), not regression
+    - 103/104/106: SYSTEM 12→11, SERVICE 2→1, README 17→15 (sync v3.44.0)
+    - 175: _check_service_active_enabled → removal (inlined to systemctl)
+    - 177: add wdat_wdt, amdgpu-performance, VKD3D_CONFIG removals
+    - 192: _btrfs_pre_snapshot → removal (ext4-only system)
+    - 212/213: scope counts (set -l 686→643, bare 313→274, set -g 130→197)
+    - 256/258: do_logs decomposition → removal regressions
+
+  Data collection:
+    - add 17 v3.10–v3.44 pattern searches to GROUP D
+    - remove stale amdgpu-performance from GROUP B DESTINATIONS
+    - remove dead _logs_file_ops/_logs_journal data collection + loop
+
+  Infrastructure:
+    - remove KEY LESSONS section (redundant with check definitions)
+    - trim AUDIT INFRA LESSONS from 18 entries to 4
+    - update all version range references v3.7.32 → v3.44.0
+    - rename 42 check descriptions + 7 _py_extract calls for _ry_ prefix
+    - replace _btrfs_pre_snapshot with _install_fstab in HELPER BODIES rg
+    - net: −100 lines from lessons, +70 lines from new checks/patterns
+
+  Count fixes:
+    - STEP 3 static checklist: 286 → 306
+    - summary table Phase 14: 95 → 115, TOTAL: 301 → 321
+    - check ranges P14: add 305-324
+
 3.8.0 (2026-04-05)
 
   301 checks (286 static + 15 runtime). +7 checks, 13 infra improvements.
