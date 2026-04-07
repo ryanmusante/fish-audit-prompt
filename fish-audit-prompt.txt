@@ -1,9 +1,9 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.9.0
+Version: 3.9.2
 Derived from: ry-install.fish v3.46.0 audit (2026-04-06)
 Checks: 330
-Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.46.0+4.x)
+Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.46.0)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
@@ -16,7 +16,10 @@ verification subsystems.
 ZERO-SKIP: Every source line analyzed. No sampling. Trace all code
 paths including error branches, unreachable code, early returns.
 
-AUDIT INFRA LESSONS:
+───────────────────────────────────────────────────────────────
+ AUDIT INFRA LESSONS
+───────────────────────────────────────────────────────────────
+
     STEP1  SIZE GATE truncation: low line limits silently lose sections
            from large scripts. Skeleton extraction preferred over head -N.
     GROUP_D  Scope shadow detector escape layers: bash double-quote →
@@ -39,6 +42,8 @@ AUDIT INFRA LESSONS:
 
 STEP 1: COPY + TOOLS
 
+  HOST: assumes Debian/Ubuntu (apt-get). Adapt for other distros.
+
   ```bash
   mkdir -p /home/claude/audit-{src,data}
   cp /mnt/user-data/uploads/<file> /home/claude/audit-src/script.fish
@@ -46,7 +51,8 @@ STEP 1: COPY + TOOLS
 
   apt-get update -q 2>/dev/null && \
     apt-get install -y fish fd-find bat 2>/dev/null; true
-  # Pin rg >= 14.1.1: Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884
+  # Pin rg >= 14.1.1: Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884.
+  # Re-verify pinned version against current Ubuntu LTS rg ship before each release.
   if ! rg --version 2>/dev/null | grep -qE '14\.1\.[1-9]|14\.[2-9]|1[5-9]\.|[2-9][0-9]\.'; then
     curl -sLO https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep_14.1.1-1_amd64.deb && \
       dpkg -i ripgrep_14.1.1-1_amd64.deb && rm -f ripgrep_14.1.1-1_amd64.deb
@@ -91,7 +97,7 @@ STEP 2: FALLBACKS (bash-only — do not fish-ify)
 
 STEP 3: SAVE CHECKLIST TO DISK
 
-  Save the 306-check static analysis checklist (phases 1-11, 13-15;
+  Save the 315-check static analysis checklist (phases 1-11, 13-15;
   phase 12's 15 runtime checks are inline in PASS 2) from the
   CHECKLIST REFERENCE section (at end of this document) to
   /home/claude/audit-data/checklist.txt.
@@ -100,7 +106,7 @@ STEP 3: SAVE CHECKLIST TO DISK
   "CHECKLIST REFERENCE" header through end of Phase 15, then write
   that content to /home/claude/audit-data/checklist.txt via
   create_file or bash heredoc. Copy verbatim — do not regenerate or
-  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 306.
+  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 315.
 
   PASS 2 runtime count verification (inline in PASS 2 section):
     grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 15.
@@ -265,7 +271,7 @@ for line in lines:
 
   # ── GROUP A1: P1-3 syntax, routing, errors ──
   ( set -uo pipefail; (
-    echo "=== BASHISMS ===" && rg -n '\$\(|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | head -30
+    echo "=== BASHISMS ===" && rg -n '\$\(|\[\[|\$\{|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | head -30
     echo "=== FISH_INDENT ===" && if command -v fish_indent >/dev/null 2>&1; then fish_indent --check "$F" 2>&1; echo "exit: $?"; else echo "UNAVAILABLE (fish_indent not found — check 216 DEFERRED)"; fi
     echo "=== STRING OPS ===" && rg -n 'string (match|replace|split|join|trim)' "$F" | rg -v ' -- ' | head -30
     echo "=== ARGPARSE ===" && rg -n 'argparse|argv' "$F" | head -30
@@ -620,25 +626,25 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V3100 AMDGPU PERF REMOVED ===" && rg -n 'amdgpu-performance\b|amdgpu_performance' "$F" | head -5
     echo "=== V3100 WDAT REMOVED ===" && rg -n 'wdat_wdt' "$F" | head -5
     echo "=== V3100 EXIT PREFLIGHT ===" && rg -n 'EXIT_PREFLIGHT' "$F" | head -10
-    echo "=== V3100 MANIFEST DIFF FIX ===" && rg -n '_manifest_write.*diff\|FIX.*manifest' "$F" | head -5
+    echo "=== V3100 MANIFEST DIFF FIX ===" && rg -n '_manifest_write.*diff|FIX.*manifest' "$F" | head -5
     echo "=== V3100 VERIFY MODE ===" && rg -n 'VERIFY_MODE' "$F" | head -10
     echo "=== V3100 SUDO -N ===" && rg -n 'sudo -n' "$F" | head -20
-    echo "=== V3100 IPV6 METHOD ===" && rg -n 'method=auto\|method=disabled\|ipv6' "$F" | head -10
-    echo "=== V3100 SSID FORBIDDEN ===" && rg -n 'SSID.*forbidden\|forbidden.*char\|_SSID_FORBIDDEN' "$F" | head -5
+    echo "=== V3100 IPV6 METHOD ===" && rg -n 'method=auto|method=disabled|ipv6' "$F" | head -10
+    echo "=== V3100 SSID FORBIDDEN ===" && rg -n 'SSID.*forbidden|forbidden.*char|_SSID_FORBIDDEN' "$F" | head -5
     echo "=== V3100 GREP SEPARATOR ===" && rg -n "grep -- " "$F" | head -20
-    echo "=== V3100 TMPDIR GUARD ===" && rg -n 'test -n.*TMPDIR\|set -q TMPDIR' "$F" | head -5
+    echo "=== V3100 TMPDIR GUARD ===" && rg -n 'test -n.*TMPDIR|set -q TMPDIR' "$F" | head -5
     echo "=== V3100 STRING COLLECT ===" && rg -n 'string collect' "$F" | head -10
-    echo "=== V3100 ZRAM CHECK ===" && rg -n 'zram\|ZRAM' "$F" | head -10
-    echo "=== V3100 LVM MASK ===" && rg -n 'lvm\|LVM\|lvs ' "$F" | head -10
+    echo "=== V3100 ZRAM CHECK ===" && rg -n 'zram|ZRAM' "$F" | head -10
+    echo "=== V3100 LVM MASK ===" && rg -n 'lvm|LVM|lvs ' "$F" | head -10
     echo "=== V3450 PREEMPT ===" && rg -n 'preempt|Dynamic Preempt' "$F" | head -10
     echo "=== V3450 PAGE LOCK REMOVED ===" && rg -n 'page_lock_unfairness' "$F" | head -5
     echo "=== V3450 NETDEV BACKLOG ===" && rg -n 'netdev_max_backlog' "$F" | head -5
     echo "=== V3450 SOMAXCONN ===" && rg -n 'somaxconn' "$F" | head -5
     echo "=== V3450 SYSCTL PRIORITY ===" && rg -n 'priority 99|priority.*override' "$F" | head -5
     echo "=== V3460 SPLIT M1 ===" && rg -n 'string split -m1' "$F" | head -10
-    echo "=== V3460 NOATIME DEDUP ===" && rg -n 'noatime.*already\|already.*noatime\|match.*noatime' "$F" | head -10
+    echo "=== V3460 NOATIME DEDUP ===" && rg -n 'noatime.*already|already.*noatime|match.*noatime' "$F" | head -10
     echo "=== V3460 USBHID REMOVED ===" && rg -n 'usbhid' "$F" | head -5
-    echo "=== V3460 COREDUMP VERIFY ===" && rg -n 'Storage=none\|ProcessSizeMax\|coredump.*verify\|verify.*coredump' "$F" | head -10
+    echo "=== V3460 COREDUMP VERIFY ===" && rg -n 'Storage=none|ProcessSizeMax|coredump.*verify|verify.*coredump' "$F" | head -10
   ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
   # ── GROUP E: P13 gap analysis (race/error/edge tracing) ──
@@ -796,7 +802,9 @@ STEP 2: ANALYZE ON DISK
 
   Report to context ONLY:
     "PASS 1 complete. N findings (N CRIT, N HIGH, N MED, N LOW, N INFO).
-     Phases 1-11, 13-15 analyzed. Proceeding to PASS 2."
+     Phases 1-11, 13-15 analyzed. Proceeding to PASS 2.
+     Per-phase tally: P1:N P2:N P3:N P4:N P5:N P6:N P7:N P8:N P9:N
+     P10:N P11:N P13:N P14:N P15:N (must sum to 315)."
 
   Do NOT paste raw rg output into context.
 
@@ -942,7 +950,7 @@ STEP 2: ANALYZE ON DISK
 
 ─── Phase 6: Embedded Config Content (30 checks) ─────────────
 
-  3 arrays: SYSTEM (12), USER (3), SERVICE (2) = 17 files.
+  3 arrays: SYSTEM (12), USER (3), SERVICE (1) = 16 files (sysctl is 12th SYSTEM entry; check 106 README total = 15 excludes sysctl pre-v3.2.0 baseline).
 
   6.1  SYSTEMD-BOOT
        [ ] 71. key<space>value (no =)
@@ -1013,7 +1021,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 102. Changelog entry exists; lint verifies auto
 
   7.2  FILE COUNTS
-       [ ] 103. SYSTEM count=11, _ry_get_file_content system cases=11
+       [ ] 103. SYSTEM count=12, _ry_get_file_content system cases=12
        [ ] 104. USER count=3, SERVICE count=1, _ry_get_file_content cases match
        [ ] 105. Progress steps = actual calls
        [ ] 106. README count=15 total; '*' fallback returns 1
@@ -1130,7 +1138,7 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-324,
+  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-333,
   P15 → #215-233, P12 → #239-253.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
@@ -1880,34 +1888,37 @@ STEP 1: COLLATE
 
 STEP 2: SUMMARY TABLE
 
-  Phase  | Checks | Pass | Fail | Info
-  -------|--------|------|------|-----
-    1      | 12     |      |      |
-    2      | 11     |      |      |
-    3      | 15     |      |      |
-    4      | 12     |      |      |
-    5      | 20     |      |      |
-    6      | 30     |      |      |
-    7      | 14     |      |      |
-    8      | 19     |      |      |
-    9      | 9      |      |      |
-   10     | 11     |      |      |
-   11     | 14     |      |      |
-   13     | 5      |      |      |
-   14     | 115    |      |      |
-   15     | 19     |      |      |
-   12     | 15     |      |      |
-  TOTAL  | 321    |      |      |
+  Phase  | Pass | Checks | Pass | Fail | Info
+  -------|------|--------|------|------|-----
+    1      | 1    | 12     |      |      |
+    2      | 1    | 11     |      |      |
+    3      | 1    | 15     |      |      |
+    4      | 1    | 12     |      |      |
+    5      | 1    | 20     |      |      |
+    6      | 1    | 30     |      |      |
+    7      | 1    | 14     |      |      |
+    8      | 1    | 19     |      |      |
+    9      | 1    | 9      |      |      |
+   10     | 1    | 11     |      |      |
+   11     | 1    | 14     |      |      |
+   12     | 2    | 15     |      |      |
+   13     | 1    | 5      |      |      |
+   14     | 1    | 124    |      |      |
+   15     | 1    | 19     |      |      |
+  TOTAL  |      | 330    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
   SPECIAL HANDLING:
-    Always PASS       137 (false-positive documentation)
+    Always PASS       137 (forbidden-pattern false-positive doc; pattern
+                      list documented intentionally, never fires)
     Runtime only      143 (redirect regression), PASS 2 checks (15)
-    Expect 0 hits     83, 171, 176, 177 (functional; comments exempt),
-                      193, 257, 259, 260, 263, 268, 273, 283,
-                      289, 290, 291, 292, 296 (regressions)
-    WARN not exit 2   247 (modifier-only flags)
+    Expect 0 hits     83 (no modules-load.d dest), 171 (KVER init),
+                      176, 177 (functional; comments exempt),
+                      193 (dead globals removed), 257, 259, 260,
+                      263, 268, 273, 283, 289, 290, 291, 292,
+                      296 (deprecated test -o/-a) — all regressions
+    WARN not exit 2   247 (modifier-only flags: warn, do not abort)
     Timeout exit     124 from timeout(1) if mode exceeds RUNTIME_TIMEOUT;
                       retry with higher timeout or mark DEFERRED
     Examine stderr    --test-all exit 1 on non-target: always inspect
@@ -1925,7 +1936,8 @@ STEP 3: SPEC FILE
   MED (correctness) | LOW (style) | INFO (observation) |
   BUG (logic/regression) | STYLE (formatting/convention)
 
-  Per finding: F-N | Severity | Phase | Checks | Lines | Category | Detail | Fix
+  Per finding (rendered as multi-line block, fields below):
+    F-N | Severity | Phase | Checks | Lines | Category | Detail | Fix
 
   ```
   FIXES SPEC: <script> <old-ver> → <new-ver>
@@ -1957,6 +1969,8 @@ STEP 3: SPEC FILE
   fixes. INFO listed separately.
 
   UNIQUENESS VERIFICATION (run DURING and AFTER spec generation):
+  Requires /bin/bash (uses local, [ ], ${var#prefix}). Depends on the
+  PASS 1 STEP 2 bash shims; do not fish-ify.
   Before adding each Before/After pair, verify uniqueness first:
   ```bash
   verify_unique() {
@@ -1981,10 +1995,13 @@ STEP 3: SPEC FILE
 STEP 4: PACKAGE
 
   ```bash
-  S=script; V=x.y.z; OUT=/mnt/user-data/outputs
-  cp /home/claude/audit-${S}-${V}.txt /home/claude/fixes-spec-${V}.txt "$OUT/"
-  cd /home/claude && zip "${OUT}/audit-${S}-${V}.zip" \
-    audit-${S}-${V}.txt fixes-spec-${V}.txt
+  : ${S:?set script name (e.g. ry-install)} ${V:?set version (e.g. 3.46.0)}
+  OUT=/mnt/user-data/outputs
+  Z=""
+  for f in /home/claude/audit-${S}-${V}.txt /home/claude/fixes-spec-${V}.txt; do
+    if [ -f "$f" ]; then cp "$f" "$OUT/"; Z="$Z $(basename "$f")"; else echo "SKIP: $f not found"; fi
+  done
+  cd /home/claude && [ -n "$Z" ] && zip "${OUT}/audit-${S}-${V}.zip" $Z
   ```
 
 DELIVERABLES: audit-<script>-<version>.txt + fixes-spec-<version>.txt (zipped)

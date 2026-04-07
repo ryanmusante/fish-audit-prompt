@@ -1,13 +1,13 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.9.0-blue)
+![version](https://img.shields.io/badge/version-3.9.2-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange)
 ![checks](https://img.shields.io/badge/checks-330-brightgreen)
 
 A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, and multi-mode dispatch with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
 
-Derived from `ry-install.fish` v3.46.0 · 330 checks across 15 phases · Prompt v3.9.0
+Derived from `ry-install.fish` v3.46.0 · 330 checks across 15 phases · Prompt v3.9.2
 
 [changelog](CHANGELOG.md)
 
@@ -88,7 +88,7 @@ Each audit produces:
 
 | File | Description |
 |---|---|
-| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v3.9.0) |
+| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v3.9.2) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history |
 | [`LICENSE`](LICENSE) | MIT license |
 | [`README.md`](README.md) | This file |
