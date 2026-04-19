@@ -1,13 +1,13 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-3.9.2-blue)
+![version](https://img.shields.io/badge/version-4.0.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange)
-![checks](https://img.shields.io/badge/checks-330-brightgreen)
+![checks](https://img.shields.io/badge/checks-357-brightgreen)
 
-A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, and multi-mode dispatch with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
+A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, external profile loading, and argparse-dispatched modes with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
 
-Derived from `ry-install.fish` v3.46.0 · 330 checks across 15 phases · Prompt v3.9.2
+Derived from `ry-install.fish` v4.1.3 · 357 checks across 16 phases · Prompt v4.0.0
 
 [changelog](CHANGELOG.md)
 
@@ -26,16 +26,17 @@ Derived from `ry-install.fish` v3.46.0 · 330 checks across 15 phases · Prompt 
 
 | Metric | Value |
 |---|---|
-| Total checks | 330 (315 static + 15 runtime) |
-| Phases | 15 (12 static · 1 runtime · 1 gap analysis · 1 version-specifics) |
+| Total checks | 357 (346 static + 11 runtime) |
+| Phases | 16 (11 static · 1 runtime · 1 gap analysis · 1 version-specifics · 1 supplemental · 1 profile-system) |
 | Passes | 3 (gather+analyze · runtime · finalize) |
-| Audit infra lessons | 4 (critical infrastructure traps) |
+| Retired checks | 168–170 (backup/rollback/--dry-run, ry-install v3.5.0–v4.1.0) |
+| Added checks | 334–367 (v3.47.0–v4.1.3: source-safety, profile system, argparse dispatcher, _tmpfile_key, SIG-prefix signal matching, SYU/BOOT_WIPE ack gates, nftables firewall, etc.) |
 
 ## Audit Structure
 
 **PASS 1 — GATHER + ANALYZE** (phases 1–11, 13–15) — Parallel data collection via 7 hardened subshell groups, Python3 extractors, and rg pattern matching. Raw data to disk, findings appended, summary to context.
 
-**PASS 2 — RUNTIME** (phase 12) — Fish execution tests covering stdout/stderr separation, exit code matrix, NO_COLOR enforcement, dry-run filesystem safety, and internal consistency.
+**PASS 2 — RUNTIME** (phase 12) — Fish execution tests covering stdout/stderr separation, argparse `--exclusive` enforcement, deprecated-flag rejection matrix, NO_COLOR compliance, redirect-bug regression, and SIGPIPE/signal exit-code help-text verification.
 
 **PASS 3 — FINALIZE** — Collation, summary table, fixes spec with exact Before/After for `str_replace`, version bump, and zip packaging.
 
@@ -53,11 +54,11 @@ Derived from `ry-install.fish` v3.46.0 · 330 checks across 15 phases · Prompt 
 | 8 | 19 | Function architecture |
 | 9 | 9 | Patterns and anti-patterns |
 | 10 | 11 | Magic numbers and documentation |
-| 11 | 14 | Testing and validation |
-| 12 | 15 | Runtime tests |
+| 11 | 11 | Testing and validation |
+| 12 | 11 | Runtime tests |
 | 13 | 5 | Gap analysis |
-| 14 | 124 | Version-specific (v3.1.0–v3.46.0 + Fish 4.0–4.6 compat) |
-| 15 | 19 | Supplemental deep checks |
+| 14 | 158 | Version-specific (v3.1.0–v4.1.3 + Fish 4.0–4.6 compat) |
+| 15 | 19 | Supplemental deep checks + profile-system invariants |
 
 ## Prerequisites
 
@@ -88,7 +89,7 @@ Each audit produces:
 
 | File | Description |
 |---|---|
-| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v3.9.2) |
+| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v4.0.0) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history |
 | [`LICENSE`](LICENSE) | MIT license |
 | [`README.md`](README.md) | This file |

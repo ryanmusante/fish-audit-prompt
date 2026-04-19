@@ -1,40 +1,20 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 3.9.2
-Derived from: ry-install.fish v3.46.0 audit (2026-04-06)
-Checks: 330
-Phases: 15 (12 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v3.46.0)
+Version: 4.0.0
+Derived from: ry-install.fish v4.1.3 audit (2026-04-19)
+Checks: 357
+Phases: 16 (11 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v4.1.3 + 1 supplemental + 1 profile system)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
 ───────────────────────────────────────────────────────────────
 
-330-check audit (315 static + 15 runtime) for production fish scripts managing system config,
-sudo, credentials, embedded configs, and multi-mode dispatch with
-verification subsystems.
+357-check audit (346 static + 11 runtime) for production fish scripts managing system config,
+sudo, credentials, embedded configs, external profile loading, and argparse-dispatched
+modes with verification subsystems.
 
 ZERO-SKIP: Every source line analyzed. No sampling. Trace all code
 paths including error branches, unreachable code, early returns.
-
-───────────────────────────────────────────────────────────────
- AUDIT INFRA LESSONS
-───────────────────────────────────────────────────────────────
-
-    STEP1  SIZE GATE truncation: low line limits silently lose sections
-           from large scripts. Skeleton extraction preferred over head -N.
-    GROUP_D  Scope shadow detector escape layers: bash double-quote →
-           python raw string → regex. Each layer halves backslashes.
-           Test with actual Python before deploying multi-layer escapes.
-           Always grep for full backslash run count across the entire
-           block after fixing escapes.
-    EXTRACTORS  All depth-tracking Python extractors (7 total) assume
-           multi-line begin/end from fish_indent. Single-line
-           `begin; cmd; end` corrupts depth tracking. Always verify
-           check 215 (fish_indent) before trusting extractor output.
-    PASS3  GREP-C DOUBLE OUTPUT: `grep -c` on 0-match returns "0"
-           (exit 1) → fallback also outputs "0" → two values captured.
-           Fix: Fish `set c $c[-1]`; bash `| tail -1`. Applies to ALL
-           rg → grep → echo fallback chains producing counts.
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -97,8 +77,8 @@ STEP 2: FALLBACKS (bash-only — do not fish-ify)
 
 STEP 3: SAVE CHECKLIST TO DISK
 
-  Save the 315-check static analysis checklist (phases 1-11, 13-15;
-  phase 12's 15 runtime checks are inline in PASS 2) from the
+  Save the 346-check static analysis checklist (phases 1-11, 13-15;
+  phase 12's 11 runtime checks are inline in PASS 2) from the
   CHECKLIST REFERENCE section (at end of this document) to
   /home/claude/audit-data/checklist.txt.
 
@@ -106,11 +86,11 @@ STEP 3: SAVE CHECKLIST TO DISK
   "CHECKLIST REFERENCE" header through end of Phase 15, then write
   that content to /home/claude/audit-data/checklist.txt via
   create_file or bash heredoc. Copy verbatim — do not regenerate or
-  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 315.
+  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 346.
 
   PASS 2 runtime count verification (inline in PASS 2 section):
-    grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 15.
-    Total: 315 + 15 = 330.
+    grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 11.
+    Total: 346 + 11 = 357.
 
   Read phases on demand during analysis:
     bat --plain -r START:END /home/claude/audit-data/checklist.txt
@@ -355,44 +335,14 @@ for i, line in enumerate(lines, 1):
     echo "=== MAGIC NUMS ===" && rg -n 'TEMP_|DISK_|BOOT_|MAX_|CACHE_|ROOT_AVAIL|NVME_LIFE' "$F" | head -30
     echo "=== DRY ===" && rg -n 'DRY|dry.run|--dry-run|\[DRY\]' "$F" | head -20
     echo "=== TEST_ALL ===" && rg -n 'do_test_all|verify.static|verify.runtime' "$F" | head -20
-    echo "=== TEST_ALL BODY ===" && { _tta=$(_py_extract "$F" "_ry_do_test_all"); printf '%s\n' "$_tta" | head -50; }
-    echo "=== TEST_ALL TMPFILES ===" && printf '%s\n' "$_tta" | rg 'mktemp|rm -f' | head -10
+    echo "=== TEST_ALL BODY ===" && echo "NOTE: _ry_do_test_all removed v4.1.0 — expect 0 hits (regression check)"
+    echo "=== TEST_ALL TMPFILES ===" && echo "NOTE: N/A since v4.1.0 removed _ry_do_test_all"
     echo "=== ISATTY ===" && rg -n 'isatty|test -t' "$F" | head -20
     echo "=== PRE-LOCK ===" && rg -n 'case install-file|case install|_acquire_lock' "$F" | head -20
     echo "=== PROGRESS DEFINED ===" && sed -n '/set -g PROGRESS_STEPS/,/^[^\\]*$/p' "$F" | rg -o '"[^"]*"' | tr -d '"' | sort | head -30
     echo "=== PROGRESS CALLED ===" && { rg '_progress "' "$F" | rg -v '#|function|grep' | rg -oP '(?<=_progress ")[^"]+' 2>/dev/null || rg '_progress "' "$F" | rg -v '#|function|grep' | sed 's/.*_progress "//' | sed 's/".*//'; } | sort | head -30
-    echo "=== COMPLETIONS FLAGS ===" && python3 -IS - "$F" << 'PYEOF'
-import re, sys
-lines = open(sys.argv[1]).readlines()
-cap = False; depth = 0; flags = set()
-block_re = re.compile(r'^\s*(function |if |for |while |switch |begin\b)')
-for line in lines:
-    s = line.strip()
-    if s.startswith('else'): continue
-    if not cap:
-        if re.match(r'^function _ry_do_completions ', line): cap = True; depth = 1; continue
-        continue
-    if block_re.match(line): depth += 1
-    if s == 'end':
-        depth -= 1
-        if depth == 0: break
-    for m in re.findall(r'-l (\S+)', line):
-        m = re.sub(r"['\",\\]", '', m)
-        if m and re.match(r'^[a-z]', m) and m not in ('comp_dir','comp_dst','tmpfile'):
-            flags.add(m)
-for f in sorted(flags): print(f)
-PYEOF
-    echo "=== DISPATCH CASES ===" && python3 -ISc "
-import re, sys
-lines = open(sys.argv[1]).readlines()
-past = False
-for line in lines:
-    if not past and 'Main dispatch' in line: past = True; continue
-    if not past: continue
-    s = line.strip()
-    if re.match(r'case [a-z]', s): print(s)
-    if s == 'end': break
-" "$F" 2>&1 | head -30
+    echo "=== COMPLETIONS REMOVED (v4.1.0) ===" && rg -n '_ry_do_completions|do_completions' "$F" | head -5
+    echo "=== DISPATCH CASES (argparse-based v4.1.3) ===" && rg -n '_flag_verify_static|_flag_verify_runtime|_flag_check|_flag_install_file|_flag_help|_flag_version' "$F" | rg -v '#' | head -30
     echo "=== HELP FLAGS ===" && _py_extract "$F" "_ry_show_help" | rg -o '\-\-[a-z][-a-z]+' | rg -v '^--color$' | sort -u | head -30
     echo "=== UNREACHABLE ===" && { rg -Un '(return [0-9]+|exit [0-9]+)\n\s+[a-z_]' "$F" 2>/dev/null || awk '/^[[:space:]]*(return|exit) [0-9]+/{p=NR":"$0;next} p && /^[[:space:]]+[a-z_]/{print p"\n"NR":"$0;p=""} {p=""}' "$F"; } | rg -v 'end$|else|#|function' | head -10
     echo "=== OR RETURN ===" && rg -n 'or return [^0]' "$F" | head -10
@@ -401,7 +351,7 @@ for line in lines:
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v3.46.0 specifics ──
+  # ── GROUP D: P14 v3.1.0–v4.1.3 specifics ──
   ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -645,6 +595,59 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V3460 NOATIME DEDUP ===" && rg -n 'noatime.*already|already.*noatime|match.*noatime' "$F" | head -10
     echo "=== V3460 USBHID REMOVED ===" && rg -n 'usbhid' "$F" | head -5
     echo "=== V3460 COREDUMP VERIFY ===" && rg -n 'Storage=none|ProcessSizeMax|coredump.*verify|verify.*coredump' "$F" | head -10
+    # ── v3.47.0–v4.1.3 additions ──
+    echo "=== V3480 LINT REMOVED ===" && rg -n '_ry_do_lint|do_lint\b|--lint\b' "$F" | rg -v '#|_err|_warn|_fail|deprecated|removed' | head -10
+    echo "=== V410 TEST_ALL REMOVED ===" && rg -n '_ry_do_test_all|do_test_all\b|--test-all\b' "$F" | rg -v '#|removed|deprecated' | head -10
+    echo "=== V410 COMPLETIONS REMOVED ===" && rg -n '_ry_do_completions|--completions\b' "$F" | rg -v '#|removed|deprecated' | head -10
+    echo "=== LOGS REMOVED ===" && rg -n 'do_logs\b|_logs_file_ops|_logs_journal|_logs_list|--logs\b' "$F" | rg -v '#|removed|deprecated' | head -10
+    echo "=== V3500 PROFILE SYSTEM ===" && rg -n '_load_profile|_validate_profile|_ry_profile_|default-profile' "$F" | head -20
+    echo "=== V3500 PROFILE GLOBALS ===" && rg -n 'PROFILE_NAME|PROFILE_DESC' "$F" | head -10
+    echo "=== V3500 MANIFEST ORPHANS ===" && rg -n '_manifest_check_orphans|_manifest_write' "$F" | head -10
+    echo "=== V3501 FLOCK RECLAIM E5 ===" && rg -n 'flock -n -E 5' "$F" | head -5
+    echo "=== V3482 GET_BOOT_TIME INLINED ===" && rg -n '_get_boot_time' "$F" | rg -v '#|removed' | head -5
+    echo "=== V3482 PROGRESS_SKIP MERGED ===" && rg -n '_progress_skip' "$F" | rg -v '#|merged' | head -5
+    echo "=== V3482 BOOT_WIPE_MARKER ===" && rg -n 'BOOT_WIPE_MARKER|RY_INSTALL_CONFIRM_BOOT_WIPE|boot-wipe-acknowledged' "$F" | head -15
+    echo "=== V3482 LINT MODE REMOVED ===" && rg -n 'do_lint|--lint' "$F" | rg -v '#|removed|deprecated|--no-lint' | head -5
+    echo "=== V3482 RY_EXIT SOURCE SAFE ===" && rg -n '_ry_exit|_RY_INSTALL_BAILING|_RY_INSTALL_SOURCED|_RY_INSTALL_LAST_EXIT' "$F" | head -25
+    echo "=== V3482 NAMESPACE CLEANUP ===" && rg -n '_ry_namespace_cleanup|_preserve' "$F" | head -10
+    echo "=== V3485 RY_RUN_TIMEOUT ===" && rg -n 'RY_RUN_TIMEOUT' "$F" | head -10
+    echo "=== V3485 RUN STDOUT STDERR ===" && rg -n 'mktemp -d|--kill-after' "$F" | head -10
+    echo "=== V3516 FSTAB POST WRITE ===" && rg -n 'findmnt --verify|findmnt.*verify' "$F" | head -10
+    echo "=== V3513 DETECT_LVM ===" && rg -n '_detect_lvm\b' "$F" | head -5
+    echo "=== V3513 KILL KEEPALIVE ESCALATION ===" && rg -n '_kill_sudo_keepalive' "$F" | head -5
+    echo "=== V3517 BOOT CASCADE ===" && rg -n '_install_rebuild_boot' "$F" | head -10
+    echo "=== V400 KERNEL PARAMS 15 ===" && rg -nc '^\s+(iommu=pt|amd_pstate=active|amdgpu\.cwsr_enable|amdgpu\.ppfeaturemask|loglevel=3|module_blacklist=pcspkr|nowatchdog|pcie_aspm\.policy|quiet|rd\.systemd\.show_status|rd\.udev\.log_level|split_lock_detect|tsc=reliable|usbcore\.autosuspend|zswap\.enabled)' "$F"
+    echo "=== V400 SYSCTL 19 ===" && rg -n 'net\.core\.default_qdisc|net\.core\.netdev_max_backlog|tcp_congestion_control|tcp_fastopen|tcp_notsent_lowat|vm\.max_map_count|fs\.protected_fifos|vm\.compaction_proactiveness|net\.core\.busy_read|net\.core\.netdev_budget' "$F" | head -20
+    echo "=== V400 NFTABLES ===" && rg -n 'nftables' "$F" | head -10
+    echo "=== V400 AMD_PSTATE ===" && rg -n 'amd_pstate=active' "$F" | head -5
+    echo "=== V400 RADV EXPERIMENTAL ===" && rg -n 'RADV_EXPERIMENTAL|RADV_PERFTEST' "$F" | head -10
+    echo "=== V400 SOMAXCONN REMOVED ===" && rg -n 'somaxconn' "$F" | rg -v '#|removed' | head -5
+    echo "=== V400 INOTIFY REMOVED ===" && rg -n 'inotify\.max_user_watches' "$F" | rg -v '#|removed' | head -5
+    echo "=== V400 IRQBALANCE REMOVED FROM MASK ===" && rg -n 'irqbalance' "$F" | head -5
+    echo "=== V400 COREDUMP SOCKET MASKED ===" && rg -n 'systemd-coredump\.socket' "$F" | head -5
+    echo "=== V400 RESOLVED MDNS ===" && rg -n 'RESOLVED_MDNS|MulticastDNS' "$F" | head -10
+    echo "=== V401 FSTAB SUDO CHMOD ===" && rg -n '\-\-reference=/etc/fstab|sudo chmod.*reference' "$F" | head -5
+    echo "=== V401 LOG UMASK 0077 ===" && rg -n 'umask 0077|chmod 700' "$F" | head -10
+    echo "=== V403 HASH PIPESTATUS ===" && rg -n '_ps\[1\]=0.*_ps\[2\]=0|pipestatus\[2\]' "$F" | head -10
+    echo "=== V403 CONTENT_HASH ===" && rg -n '_content_hash' "$F" | head -10
+    echo "=== V410 DISPATCHER ARGPARSE ===" && rg -nA2 'argparse --name=ry-install' "$F" | head -15
+    echo "=== V410 ARGPARSE EXCLUSIVE ===" && rg -n '\-\-exclusive=' "$F" | head -5
+    echo "=== V410 DEPRECATED FLAGS ===" && rg -n '_flag_all\b.*no longer|_flag_dry_run.*removed|_flag_diff.*removed|_flag_fix.*removed' "$F" | head -10
+    echo "=== V411 SIGNAL CASE ===" && rg -n 'case HUP SIGHUP|case INT SIGINT|case QUIT SIGQUIT|case TERM SIGTERM' "$F" | head -5
+    echo "=== V411 SIGNAL EXIT CODES ===" && rg -n '_sig_exit 129|_sig_exit 130|_sig_exit 131|_sig_exit 143' "$F" | head -10
+    echo "=== V412 SUDO TAG REGEX ===" && rg -n '!PASSWD\\b|!SETENV\\b|NOEXEC\\b|LOG_OUTPUT\\b' "$F" | head -10
+    echo "=== V412 SYU GATE ===" && rg -n 'RY_INSTALL_CONFIRM_SYSTEM_UPGRADE' "$F" | head -10
+    echo "=== V412 MANIFEST DECOUPLED ===" && rg -n 'MANIFEST_WRITE_FAILED' "$F" | head -5
+    echo "=== V412 BOOT_CRIT SDBOOT UPDATE ===" && rg -n 'sdboot-manage update' "$F" | head -10
+    echo "=== V412 FLOCK SOFT DEP ===" && rg -n 'flock.*SOFT|flock.*fallback' "$F" | head -5
+    echo "=== V413 TMPFILE_KEY ===" && rg -n '_tmpfile_key' "$F" | head -15
+    echo "=== V413 WRITE_FOOTER NO_FINISHED ===" && rg -n '"finished":' "$F" | head -5
+    echo "=== V413 IMPLICIT_SVCS DERIVED ===" && rg -n 'implicit_svcs' "$F" | head -5
+    echo "=== V413 VAL_DIR CONTENT_DIR PRUNE ===" && rg -n 'val_dir.*TRACKED|content_dir.*TRACKED|set --erase _TRACKED' "$F" | head -10
+    echo "=== V413 BLS EXACT SEGMENT ===" && rg -n 'kernel\.\.custom|path-traversal|exact-segment' "$F" | head -5
+    echo "=== V413 EXIT TRIPLE FORM ===" && rg -c '_ry_exit \$[A-Z_]+; and return \$[A-Z_]+; or return \$[A-Z_]+' "$F"
+    echo "=== V413 DISPATCHER EXCLUSIVE ===" && rg -n '\-\-exclusive=verify-static,verify-runtime,check,install-file' "$F" | head -3
+    echo "=== MANAGED_FILE_COUNT ===" && rg -n '_RY_MANAGED_FILE_COUNT|_RY_MANAGED_CASE_COUNT' "$F" | head -5
   ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
   # ── GROUP E: P13 gap analysis (race/error/edge tracing) ──
@@ -715,7 +718,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
   # ── Post-wait data guard (D and E collect independently; E's ──
   # ── P13 analysis reads p14.txt for 11 shared patterns)       ──
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v3.46.0 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.1.3 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -734,7 +737,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14 (v3.1.0-v3.46.0 specifics)" ;;
+        p14)    phases="P14 (v3.1.0-v4.1.3 specifics)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -787,7 +790,7 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phase 14 (version specifics v3.1.0-v3.46.0)
+    p14.txt   → Phase 14 (version specifics v3.1.0-v4.1.3)
     Phase 15 deep checks use data from ALL files above (not just p14.txt).
 
   If p14.txt is missing or truncated, mark shared-pattern P13
@@ -804,7 +807,7 @@ STEP 2: ANALYZE ON DISK
     "PASS 1 complete. N findings (N CRIT, N HIGH, N MED, N LOW, N INFO).
      Phases 1-11, 13-15 analyzed. Proceeding to PASS 2.
      Per-phase tally: P1:N P2:N P3:N P4:N P5:N P6:N P7:N P8:N P9:N
-     P10:N P11:N P13:N P14:N P15:N (must sum to 315)."
+     P10:N P11:N P13:N P14:N P15:N (must sum to 346)."
 
   Do NOT paste raw rg output into context.
 
@@ -950,19 +953,21 @@ STEP 2: ANALYZE ON DISK
 
 ─── Phase 6: Embedded Config Content (30 checks) ─────────────
 
-  3 arrays: SYSTEM (12), USER (3), SERVICE (1) = 16 files (sysctl is 12th SYSTEM entry; check 106 README total = 15 excludes sysctl pre-v3.2.0 baseline).
+  3 arrays: SYSTEM (12), USER (3), SERVICE (1) = 16 files (sysctl is 11th SYSTEM entry;
+  udev rqaffinity is 12th added v3.51.x; README MANAGED_FILE_COUNT = 16).
 
   6.1  SYSTEMD-BOOT
        [ ] 71. key<space>value (no =)
        [ ] 72. Valid keys only
 
   6.2  KERNEL CMDLINE
-       [ ] 73. rw root=UUID=<uuid> dynamic
-       [ ] 74. Space-separated, no trailing ws
+       [ ] 73. rw root=UUID=<uuid> dynamic, cached _ROOT_UUID
+       [ ] 74. Space-separated, no trailing ws; 15 KERNEL_PARAMS entries (v4.0.0)
        [ ] 75. modprobe.d blacklist-only (no options since v2.5.0)
 
   6.3  SDBOOT-MANAGE
-       [ ] 76. KEY="VALUE", required keys, FALLBACK="quiet"
+       [ ] 76. KEY="VALUE", required keys, FALLBACK="quiet",
+               REMOVE_EXISTING=yes ack-gated via RY_INSTALL_CONFIRM_BOOT_WIPE (v3.48.16)
        [ ] 77. OPTIONS ⊇ KERNEL_PARAMS
 
   6.4  MKINITCPIO
@@ -1010,9 +1015,14 @@ STEP 2: ANALYZE ON DISK
        [ ] 98. fish --no-execute valid; guards present; SSH auth sock priority
 
   6.14 SYSCTL.D (v3.2.0)
-       [ ] 99. Format: key = value, comment header refs CachyOS vendor; no overlap
-       [ ] 100. 4 required keys: default_qdisc=fq, tcp_congestion_control=bbr,
-                tcp_fastopen=3, max_user_watches=524288
+       [ ] 99. Format: key = value, comment header refs CachyOS vendor; no overlap;
+                priority-99 override note (v3.45.0); string split -m1 '=' (v3.46.0)
+       [ ] 100. SYSCTL_VALUES 19 entries (v4.0.0): default_qdisc=fq,
+                tcp_congestion_control=bbr, tcp_fastopen=3,
+                tcp_notsent_lowat=131072 (v4.0.0 add), netdev_max_backlog=16384,
+                vm.max_map_count=2147483642, busy_read/busy_poll/netdev_budget.
+                Removed v4.0.0: inotify.max_user_watches, somaxconn,
+                unprivileged_bpf_disabled, page_lock_unfairness.
 
 ─── Phase 7: Cross-References & Consistency (14 checks) ──────
 
@@ -1022,9 +1032,15 @@ STEP 2: ANALYZE ON DISK
 
   7.2  FILE COUNTS
        [ ] 103. SYSTEM count=12, _ry_get_file_content system cases=12
-       [ ] 104. USER count=3, SERVICE count=1, _ry_get_file_content cases match
-       [ ] 105. Progress steps = actual calls
-       [ ] 106. README count=15 total; '*' fallback returns 1
+                (includes /etc/drirc, /etc/sysctl.d/99-cachyos-sysctl.conf,
+                /etc/udev/rules.d/99-nvme-rqaffinity.rules,
+                /etc/systemd/coredump.conf.d/99-cachyos-coredump.conf)
+       [ ] 104. USER count=3, SERVICE count=1, _ry_get_file_content cases match;
+                _RY_MANAGED_FILE_COUNT=16 (renamed v3.51.12 from _CASE_COUNT)
+       [ ] 105. Progress steps = 6 (Preflight/Packages/Configuration/Services/Boot/Finalize);
+                PROGRESS_TOTAL = count $PROGRESS_STEPS
+       [ ] 106. README count=16 total; MANAGED_FILE_COUNT variable
+                matches _RY_MANAGED_FILE_COUNT compile-time constant.
 
   7.3  PARAMETER CROSS-REFS
        [ ] 107. modprobe.d blacklist-only (regression)
@@ -1034,8 +1050,12 @@ STEP 2: ANALYZE ON DISK
   7.4  README ↔ HELP
        [ ] 110. All --help options in README
        [ ] 111. Sub-options + modifiers documented as separate entries
-       [ ] 112. --logs sub-targets + --install-file documented
-       [ ] 113. Exit codes (0,1,2,3,4,5,10,11,130,141) in both --help and README
+       [ ] 112. --install-file path requirement documented; deprecated-flag
+                rejection messages documented in README "Deprecated flags —
+                DO NOT re-introduce" section (README v4.1.3).
+       [ ] 113. Exit codes (0,1,2,3,4,5,10,129,130,131,141,143) in both
+                --help and README. Code 11 (EXIT_LINT) retired v3.48.20 —
+                regression: must NOT appear in either.
        [ ] 114. Prerequisites listed; mode cross-refs
 
 ─── Phase 8: Function Architecture (19 checks) ───────────────
@@ -1110,7 +1130,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 155. README: quick-start, options, config ref
        [ ] 156. Changelog covers versions; LICENSE present
 
-─── Phase 11: Testing & Validation (14 checks) ───────────────
+─── Phase 11: Testing & Validation (11 checks) ───────────────
 
   11.1 PREFLIGHT
        [ ] 157. Deps verified + disk space checked
@@ -1123,23 +1143,26 @@ STEP 2: ANALYZE ON DISK
        [ ] 162. modprobe -n; INI section headers; udev no empty match
        [ ] 163. Hook order programmatic validation
 
-  11.3 INTERNAL LINT
-       [ ] 164. Version sync + file/case counts
-       [ ] 165. Anti-pattern self-scan; progress = actual
+  11.3 VERSION SYNC + COUNT CONSISTENCY
+       [ ] 164. Version sync + file/case counts + MANAGED_FILE_COUNT
+                matches _RY_MANAGED_FILE_COUNT compile-time constant
+       [ ] 165. Anti-pattern self-scan via rg in verification modes;
+                progress steps = actual _progress calls (6 steps)
 
-  11.4 DRY-RUN
-       [ ] 166. All writes skipped + logged as DRY
-       [ ] 167. Gates on ALL write paths
-
-  11.5 ROLLBACK
-       [ ] 168. Destructive ops have undo/dry-run
-       [ ] 169. Backup before overwrite
-       [ ] 170. Recovery documented
+  11.4 IDEMPOTENCY + RECOVERY
+       [ ] 166. Re-run identical; manifest-based orphan detection via
+                _manifest_check_orphans; _manifest_write gated on success
+       [ ] 167. Recovery documented in README (uninstall section);
+                manifest at ~/ry-install/.manifest is source of truth.
+                NOTE: --dry-run, backup system, --fix, and do_rollback
+                all removed (v3.5.0/v4.1.0) — script is install-only.
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-170, P13 → #234-238, P14 → #171-214,254-333,
-  P15 → #215-233, P12 → #239-253.
+  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-367,
+  P15 → #215-233, P12 → #239-249. Checks 168-170 retired in v4.0.0 audit
+  prompt (rollback/backup/--dry-run features removed from ry-install v3.5.0–v4.1.0).
+  Checks 334-367 added in v4.0.0 audit prompt covering ry-install v3.47.0–v4.1.3.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
 
@@ -1158,7 +1181,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v3.46.0 Specifics (124 checks) ──────────
+─── Phase 14: v3.1.0–v4.1.3 Specifics (158 checks) ───────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1293,9 +1316,9 @@ STEP 2: ANALYZE ON DISK
   14.15 SCOPE REMEDIATION (v3.3.0–v3.3.7)
        [ ] 211. 186 set -l → bare set across 49 functions (124 in v3.3.0 +
                19 in v3.3.2 + 28 in v3.3.5 + 15 in v3.3.7).
-               Note: script's --lint awk checker only detects function-scope
-               (depth 0) → block shadows; block → nested-block shadows
-               require a scope-stack detector (see GROUP D collection).
+               Note: --lint mode removed v3.48.20 — scope shadow detection
+               now relies entirely on GROUP D python3 scope-stack detector;
+               no script-side checker remains.
        [ ] 212. Cross-block vars use bare set: _ry_do_diff (has_diff,
                has_pacnew, this_diff, actual_perms, actual_owner,
                target_owner), _ry_do_lint (has_errors),
@@ -1312,12 +1335,12 @@ STEP 2: ANALYZE ON DISK
        [ ] 214. _analyze_log removed: 0 hits. Step timing consolidated
                into _emit_step_time helper (v3.40.0).
 
-  14.16 COMPLETIONS VALIDATION FIX (v3.4.1)
-       NOTE: _ry_do_test_all completions validation was broken in v3.4.0 —
-       captured stdout from --completions subprocess, but _ry_do_completions
-       writes to file (printf ... end >"$tmpfile"), never stdout. Fixed
-       in v3.4.1: reads installed file, gracefully skips on dry-run.
-       Verified via check 229 (Phase 15.11).
+  14.16 COMPLETIONS VALIDATION FIX (v3.4.1) — RETIRED
+       NOTE: This subsection described the v3.4.1 fix for --completions
+       stdout-capture vs file-write mismatch in _ry_do_test_all. Both
+       --completions and --test-all modes were removed in v4.1.0 — the
+       entire validation path no longer exists. See checks 357 and 358
+       for the current 0-hit regression verification.
 
   14.17 DECOMPOSITION + CLEANUP (v3.5.0–v3.7.13)
        [ ] 254. _gkeyfile_escape: consolidated WiFi GKeyFile escaping
@@ -1338,8 +1361,9 @@ STEP 2: ANALYZE ON DISK
                or _warn lines referencing removed backup directory.
        [ ] 260. Bare sudo nmcli: 0 bare `sudo nmcli` outside _run. All
                state-changing sudo calls wrapped in _run for audit trail.
-       [ ] 261. set -l next_arg in --logs arg parser (not bare set).
-               Consistent with --diff/--install-file arg parsers.
+       [ ] 261. set -l next_arg / argparse=VALUE pattern in --install-file
+               arg consumption (only surviving arg-taking flag post-v4.1.0).
+               Consistent with argparse `install-file=` spec syntax.
        [ ] 262. Inline comment density: all 26 functions >50 lines have
                ≥2 inline comments (v3.5.0 decomposition reduced count from
                34 to 27; v3.7.x batch/parallel additions grew it to 33).
@@ -1541,12 +1565,16 @@ STEP 2: ANALYZE ON DISK
        [ ] 311. EXIT_PREFLIGHT(3) for --check infra failures (v3.37.0):
                sudo unavailable, content pregeneration, mktemp failures
                return 3 not 10. CI can distinguish prereq from drift.
-       [ ] 312. _manifest_write in --diff --fix (v3.37.0): guarded by
-               FIX=true, DRY=false, fixed_count>0. Orphan tracking
-               stays current without full reinstall.
-       [ ] 313. VERIFY_MODE lifecycle in --diff (v3.37.0): set true with
-               counter reset at entry, false before return. JSONL footer
-               reports accurate pass/fail/warn for diff runs.
+       [ ] 312. _manifest_write gate (v3.37.0 origin, migrated in v4.1.0):
+               call site moved out of --diff --fix (both removed) into
+               _install_finalize success path. v4.1.2 decoupled from
+               INSTALL_HAD_ERRORS — failure logs MANIFEST_WRITE_FAILED only.
+               rg '_manifest_write' → finalize call + helper definition.
+       [ ] 313. VERIFY_MODE lifecycle (v3.37.0 origin, migrated in v4.1.0):
+               --diff removed; VERIFY_MODE now scoped to --verify-static
+               and --verify-runtime. Set true at entry with counter reset,
+               false before return. JSONL footer reports accurate
+               pass/fail/warn for verify runs.
        [ ] 314. sudo -n convention expansion (v3.37.2): 4 bare sudo cat →
                sudo -n cat in _atomic_write_file (2), _ry_install_file (1),
                _ry_verify_static (1). All read-only sudo uses sudo -n.
@@ -1609,6 +1637,168 @@ STEP 2: ANALYZE ON DISK
                against deployed file content. Catch silent regression
                if conf.d file overwritten by package update.
 
+  14.25 v3.47.0–v3.51.15 CHANGES (9 checks)
+       [ ] 334. --lint mode removal (v3.48.20): _ry_do_lint, --lint flag,
+                --no-lint → 0 functional hits. Exit code 11 retired.
+                Deprecated-flag handler emits usage error on --lint.
+                rg '_ry_do_lint|--no-lint' → 0 hits; rg 'exit.*11\b|EXIT_LINT' → 0.
+       [ ] 335. _get_boot_time inlined (v3.48.22): 0 hits for the helper.
+                _progress_skip merged into _progress (v3.48.22): 0 hits.
+                _ry_count_managed_cases replaced by compile-time constant
+                _RY_MANAGED_FILE_COUNT (v3.51.12): rg '_ry_count_managed_cases' → 0.
+       [ ] 336. Source-safety subsystem (v3.48.20): _ry_exit helper,
+                _RY_INSTALL_BAILING, _RY_INSTALL_SOURCED, _RY_INSTALL_LAST_EXIT
+                globals. Every top-level exit wrapped as
+                `_ry_exit $CODE; and return $CODE; or return $CODE`.
+                Signal handlers gate `exit` behind _RY_INSTALL_SOURCED check.
+       [ ] 337. _ry_namespace_cleanup (v3.51.8): erases every script-set
+                `set -g` on sourced runs, preserves caller HOME (v4.0.2 fix).
+                Called unconditionally from _ry_exit (v3.51.11).
+                rg '_ry_namespace_cleanup' → ≥3 hits (helper + _ry_exit + source-guard).
+       [ ] 338. BOOT_WIPE_MARKER ack gate (v3.48.16): SDBOOT_REMOVE_EXISTING=yes
+                requires RY_INSTALL_CONFIRM_BOOT_WIPE=1 on first run;
+                marker at ~/ry-install/.boot-wipe-acknowledged.
+                Re-prompts if entry count or basename-set grows (v3.50.2).
+                rg 'RY_INSTALL_CONFIRM_BOOT_WIPE|boot-wipe-acknowledged' → ≥5.
+       [ ] 339. RY_RUN_TIMEOUT env (v3.48.24): wraps every _run with
+                `timeout --preserve-status --kill-after=10`. Default 3600.
+                Regex `^[1-9]\d*$` rejects 0, leading-zero, empty (v3.48.25).
+                Invalid values → one-shot _warn, fallback to 3600 (v4.0.1).
+       [ ] 340. TIMESTAMP suffixed with $fish_pid (v3.48.26): prevents
+                log-file race between concurrent children.
+                rg 'TIMESTAMP.*fish_pid|fish_pid.*TIMESTAMP' → ≥1.
+       [ ] 341. Profile system (v3.50.0): external profiles at
+                ~/.config/ry-install/profiles/<name>.fish; resolution via
+                ~/.config/ry-install/default-profile → gtr9_pro fallback.
+                _load_profile, _validate_profile with 26 required + 8 conditional
+                globals, numeric type-check, element sanitization.
+                Profile trust model: sourced with user privileges — no sandboxing.
+                rg '_load_profile|_validate_profile|_ry_profile_' → ≥3 helpers + ≥1 profile.
+       [ ] 342. _acquire_lock flock reclaim (v3.50.1): uses `flock -n -E 5`
+                before rmdir+mkdir+PID re-verify. Writes PID inside locked
+                subshell (v3.48.16). rg 'flock -n -E 5' → ≥1 hit.
+
+  14.26 v4.0.0 CONFIG OVERHAUL (8 checks)
+       [ ] 343. KERNEL_PARAMS 12→15 (v4.0.0): added amd_pstate=active,
+                loglevel=3, rd.udev.log_level=3, rd.systemd.show_status=auto.
+                Replaced clocksource=tsc → tsc=reliable.
+                Removed nvme_core.default_ps_max_latency_us=0 (NVMe APST
+                now a regression detector, not an applied param).
+                Verify: rg exact-match on all 15 entries in KERNEL_PARAMS array.
+       [ ] 344. SYSCTL_VALUES 21→19 (v4.0.0): removed somaxconn=8192,
+                unprivileged_bpf_disabled=1, inotify.max_user_watches
+                (kernel auto-scales), page_lock_unfairness (kernel default).
+                Added tcp_notsent_lowat=131072.
+                rg 'somaxconn|unprivileged_bpf|max_user_watches|page_lock_unfairness' → 0 functional.
+       [ ] 345. PKGS_ADD 15→14 (v4.0.0): added nftables; removed
+                vulkan-radeon + lib32-vulkan-radeon (chwd auto-installs).
+                EXPECTED_SERVICES 3→4: added nftables.service.
+                EXPECTED_VULKAN_PKGS now optional global (v3.48.20).
+       [ ] 346. nftables firewall baseline (v4.0.0): nftables in PKGS_ADD,
+                nftables.service in EXPECTED_SERVICES, new dep on nftables.
+                Restores firewall coverage after ufw removal.
+                rg 'nftables' → ≥3 hits (pkg + svc + verify).
+       [ ] 347. systemd-coredump.socket added to MASK (v4.0.0): complements
+                Storage=none by eliminating spawn-and-discard overhead on
+                Wine/Proton crashes. MASK count=10 total (v4.1.3).
+                rg 'systemd-coredump\.socket' → ≥2 hits (MASK + verify).
+       [ ] 348. irqbalance.service removed from MASK (v4.0.0): check 307
+                inverts — MASK must NOT contain irqbalance; threadirqs
+                kernel param stays. rg 'irqbalance' in MASK context → 0.
+       [ ] 349. RADV env rework (v4.0.0): RADV_EXPERIMENTAL="transfer_queue,hic",
+                RADV_PERFTEST="sam,nircache". drirc Mesa min ≥22.3 (was ≥25.0).
+                ENV_VARS count=12; deprecated DO-NOT-REINTRODUCE list documented
+                in README (DXVK_ASYNC, DXVK_FRAME_RATE, WINE_FULLSCREEN_FSR).
+       [ ] 350. RESOLVED_MDNS=resolve (v4.0.0, was `no`): fixes .local
+                resolution under COSMIC DE. Profile global propagates to
+                99-cachyos-resolved.conf MulticastDNS= line.
+                rg 'MulticastDNS=resolve' → ≥1 hit.
+
+  14.27 v4.0.1–v4.0.4 HARDENING (6 checks)
+       [ ] 351. _install_fstab_opts (v4.0.1): sudo chmod/chown
+                --reference=/etc/fstab BEFORE findmnt --verify + mv;
+                prevents 0644→0600 regression from sudo mktemp default.
+                rg '\-\-reference=/etc/fstab' → ≥2 hits.
+       [ ] 352. Log subdirs under umask 0077 (v4.0.1): chmod 700 repair
+                for looser-umask dirs from older runs. mkdir path.
+                rg 'umask 0077|chmod 700' in log context → ≥2.
+       [ ] 353. _ry_do_install_file post-deploy branches (v4.0.1): added
+                sysctl.d, coredump.conf.d, environment.d, /etc/drirc.
+                Post-install verification reload path per-destination-type.
+       [ ] 354. 11 `fish -c` sites add --preserve-status to `command timeout`
+                wrapper (v4.0.1): preserves exit code through timeout layer.
+                rg 'timeout.*--preserve-status|--preserve-status.*timeout' → ≥11.
+       [ ] 355. _ry_verify_static terminal case '*' catch-all (v4.0.2):
+                result switch has wildcard final clause; partial-write
+                payloads no longer silently skip. Workers use per-pid wait
+                to capture timeout sentinels 124/137/143 (v4.0.2).
+                rg 'contains -- .*124 137 143|_phase_rc.*124' → ≥1.
+       [ ] 356. Hash pipeline pipestatus guard (v4.0.3): 8 sites capture
+                raw line, snapshot $pipestatus, guard on `_ps[1]=0; and _ps[2]=0`.
+                Empty-stdin SHA (e3b0c44…) no longer masks cat failure.
+                rg 'e3b0c44|_ps\[1\]=0.*_ps\[2\]=0' → ≥1 guard.
+
+  14.28 v4.1.0–v4.1.3 MODE SURFACE + REGRESSIONS (11 checks)
+       [ ] 357. --test-all mode removal (v4.1.0): _ry_do_test_all,
+                --test-all flag, EXPECTED_TEST_COUNT → 0 functional hits.
+                Pre-commit `fish --no-execute` supersedes the mode.
+                -169 lines. Deprecated-flag handler emits usage error.
+                rg '_ry_do_test_all|--test-all' → 0 functional.
+       [ ] 358. --completions mode removal (v4.1.0): _ry_do_completions,
+                --completions flag, autoinstall + verify → 0 hits.
+                README is authoritative for flag documentation.
+                -93 lines. rg '_ry_do_completions|--completions' → 0.
+       [ ] 359. Signal handler SIG-prefix matching (v4.1.1): _cleanup
+                `switch "$argv[1]"` has case branches for BOTH short
+                (HUP/INT/QUIT/TERM) AND SIG-prefixed (SIGHUP/SIGINT/
+                SIGQUIT/SIGTERM) forms. Exit codes 129/130/131/143
+                correctly distinguished (were all → 130 pre-fix).
+                rg 'case HUP SIGHUP|case INT SIGINT|case QUIT SIGQUIT|case TERM SIGTERM' → 4 hits.
+       [ ] 360. _install_preflight sudo-tag regex (v4.1.2): anchored
+                correctly — `(\bNOEXEC\b|!PASSWD\b|!SETENV\b|\bLOG_OUTPUT\b)`.
+                Previous `\b!PASSWD\b` failed (leading `!` is non-word).
+                rg '!PASSWD\\b|!SETENV\\b' → ≥1 hit in regex context.
+       [ ] 361. SYU gate (v4.1.2): unattended -Syu gated behind
+                RY_INSTALL_CONFIRM_SYSTEM_UPGRADE=1. Without ack, fetches
+                3 headlines each from arch/cachyos RSS
+                (curl --max-time 5, non-blocking). Matches project rule:
+                review news before -Syu.
+                rg 'RY_INSTALL_CONFIRM_SYSTEM_UPGRADE' → ≥3 hits.
+       [ ] 362. MANIFEST_WRITE_FAILED decoupling (v4.1.2): manifest-write
+                decoupled from INSTALL_HAD_ERRORS. Failure logs
+                MANIFEST_WRITE_FAILED only; does not flip global error.
+                rg 'MANIFEST_WRITE_FAILED' → ≥1 hit.
+       [ ] 363. SDBOOT update EXIT_BOOT_CRIT (v4.1.2): sdboot-manage update
+                failure elevated to EXIT_BOOT_CRIT (symmetric with gen).
+                Both paths return 4, not 1. rg 'sdboot-manage update' → ≥1 hit.
+       [ ] 364. flock dependency soft (v4.1.2): _ry_check_deps reclassifies
+                flock(1) HARD→SOFT; fallback to PID-re-verify exists.
+                Missing flock no longer aborts.
+       [ ] 365. _tmpfile_key helper (v4.1.3): 8-char sha256 prefix prepended
+                to destination path; replaces naive `string replace -a '/' '_'`
+                at 7 call sites. Closes `/` vs `_` collision trap
+                (e.g., `a/b` and `a_b` mapped to same key pre-fix).
+                rg '_tmpfile_key' → 1 definition + 7 call sites = ≥8 hits.
+       [ ] 366. Dispatcher rewrite (v4.1.3): manual while/switch replaced
+                with `argparse --exclusive=verify-static,verify-runtime,check,install-file`.
+                Parity preserved across 13 flag scenarios. `--exclusive`
+                enforces at-most-one mode flag; mode_count retained as
+                defense-in-depth. Deprecated flags (--all, --dry-run,
+                --diff, --fix) declared solely to emit specific messages
+                via _early_usage_exit.
+                rg '\-\-exclusive=verify-static,verify-runtime,check,install-file' → 1 hit.
+                rg '_early_usage_exit' → ≥5 hits (deprecated + validation sites).
+       [ ] 367. _write_footer no redundant `finished` field (v4.1.3):
+                `finished` was duplicate of `ts`; dropped.
+                _ry_verify_static implicit_svcs derived from SYSTEM_DESTINATIONS
+                path match (not hardcoded). _ry_validate_configs prunes
+                $val_dir + $content_dir from _TRACKED_TMPFILES after rm -rf.
+                _preflight_boot_sanity BLS path-traversal: exact-segment
+                match (accepts kernel..custom, rejects ..).
+                Exit-propagation: 6 _load_profile sites normalized to triple-form
+                `_ry_exit $CODE; and return $CODE; or return $CODE`.
+                rg '"finished":' → 0 hits; rg 'implicit_svcs' → ≥1 derivation site.
+
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
   15.1 FORMATTING
@@ -1650,33 +1840,45 @@ STEP 2: ANALYZE ON DISK
                _do_cleanup, set --erase'd. kill -0 after spawn.
        [ ] 226. _run quoting: 0 unquoted $VAR in _run arguments.
 
-  15.10 FLAG COVERAGE SYNC
-       [ ] 227. Completions include complete -c for every CLI flag.
-       [ ] 228. Dispatch, _ry_show_help, and _ry_do_completions cover same flag
-               set. All modes + modifiers present in all three.
+  15.10 FLAG COVERAGE + DISPATCH CONSISTENCY (v4.1.3 argparse model)
+       [ ] 227. argparse flags in main dispatcher (verify-static,
+                verify-runtime, check, install-file, h/help, v/version,
+                V/verbose) appear in _ry_show_help. All deprecated flags
+                (--all, --dry-run, --diff, --fix) documented as rejected
+                in README "Deprecated flags — DO NOT re-introduce" section
+                OR silently rejected via deprecated-flag handler with
+                specific per-flag error message.
+       [ ] 228. _ry_show_help text enumerates all exit codes present in
+                EXIT_* globals: 0/1/2/3/4/5/10/129/130/131/141/143.
+                No stale 11 (EXIT_LINT removed v3.48.20).
 
-  15.11 TEST SUITE COVERAGE
-       [ ] 229. _ry_do_test_all: 15 parallel read-only modes + 3 sequential
-               write modes + 1 completions = 19 test items
-               (20 fish subprocesses incl. 1 syntax pre-flight).
-               Captures exit codes. Reports pass/fail. Completions
-               validation reads installed file (not stdout capture —
-               v3.4.1 fix); gracefully skips when dry-run produces no file.
-       [ ] 230. _ry_do_test_all tmpfile cleanup: rm-f on both branches.
+  15.11 GLOBAL STATE CONTRACTS
+       [ ] 229. INSTALL_HAD_ERRORS: initialized false, set true in
+                error sites. Never reset mid-pipeline.
+                Only mutated within install pipeline.
+                MANIFEST_WRITE_FAILED (v4.1.2) separate channel — does
+                not flip INSTALL_HAD_ERRORS.
 
-  15.12 GLOBAL STATE CONTRACTS
-       [ ] 231. INSTALL_HAD_ERRORS: initialized false, set true in 33
-               locations (41 total references). Never reset mid-pipeline.
-               Only mutated within install pipeline.
+  15.12 PATTERN CORRECTNESS
+       [ ] 230. 0 unreachable code. or-return patterns correct.
+                DESTINATIONS ↔ _ry_get_file_content cases match (12+3+1=16).
+                Lock PID verify-after-write present (v3.6.3 flock reclaim).
+       [ ] 231. string -- separator consistency throughout.
 
-  15.13 PATTERN CORRECTNESS
-       [ ] 232. 0 unreachable code. or-return patterns correct.
-               DESTINATIONS ↔ _ry_get_file_content cases match.
-               Lock PID verify-after-write present.
-       [ ] 233. string -- separator consistency throughout.
+  15.13 PROFILE SYSTEM INVARIANTS (v3.50.0+)
+       [ ] 232. _load_profile resolution order: argparse → env →
+                ~/.config/ry-install/default-profile → gtr9_pro fallback.
+                Every path terminates at _validate_profile call before
+                any destination is read.
+       [ ] 233. _validate_profile checks all 26 unconditional globals
+                individually and reports the missing variable name via
+                _err. 8 conditional globals gated on SYSTEM_DESTINATIONS
+                glob matches (iwd/*, *nm.conf, resolved.conf.d/*,
+                sysctl.d/*). Optional globals (PKGS_DEL, AUR_PKGS,
+                EXPECTED_VULKAN_PKGS, etc.) silently unset-safe.
 
 ═══════════════════════════════════════════════════════════════
- PASS 2: RUNTIME (phase 12, 15 checks)
+ PASS 2: RUNTIME (phase 12, 11 checks)
 ═══════════════════════════════════════════════════════════════
 
 STEP 1: PRE-FLIGHT + DATA COLLECTION
@@ -1705,84 +1907,72 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     echo "PASS 2 pre-flight: OK (fish $FISH_VER)"
   fi
 
-  # NON-TARGET HARDWARE: These modes return 1 on audit containers
-  # (missing hardware/configs). Do NOT flag as bugs:
-  #   --verify-runtime -> 1 (no managed files)
+  # NON-TARGET HARDWARE: These modes return non-zero on audit containers
+  # (missing hardware/configs/profile). Do NOT flag as bugs:
+  #   --verify-runtime → 1 (no managed files)
+  #   --verify-static  → 1 (no managed files deployed)
+  #   --check          → 3 (preflight: root UUID missing) or 10 (drift)
+  #   (no-args install) → non-zero (sudo / root UUID unavailable in container)
   # Flag as bugs ONLY if exit code differs from expected on target.
+  # REMOVED MODES (v3.48.20–v4.1.0): --lint, --test-all, --completions, --logs, --diff, --dry-run, --all, --fix, --force
+  # These must return EXIT_USAGE (2) via argparse rejection or deprecated-flag handler.
 
   D=/home/claude/audit-data/runtime
   mkdir -p "$D"
   RUNTIME_TIMEOUT=30
 
-  # Group A: stdout/stderr separation
+  # Group A: stdout/stderr separation (--help, --version and short forms)
   timeout "$RUNTIME_TIMEOUT" fish "$S" --help    >"$D/help-out.txt"  2>"$D/help-err.txt"  &
   timeout "$RUNTIME_TIMEOUT" fish "$S" -h        >"$D/h-out.txt"     2>"$D/h-err.txt"     &
   timeout "$RUNTIME_TIMEOUT" fish "$S" --version >"$D/ver-out.txt"   2>"$D/ver-err.txt"   &
   timeout "$RUNTIME_TIMEOUT" fish "$S" -v        >"$D/v-out.txt"     2>"$D/v-err.txt"     &
   wait
 
-  # Group B: exit code matrix
+  # Group B: exit code matrix (surviving modes + deprecated-flag rejection)
   (
-    for mode in \
-      "--help" "-h" "--version" "-v" "--bogus" "--fix" \
-      "--diff --lint"; do
+    # B1: help/version/bogus
+    for mode in "--help" "-h" "--version" "-v" "--bogus" "--verbose"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b1.txt" &
   (
-    for mode in \
-      "--verify-static" "--verify-runtime" "--lint" "--test-all" \
-      "--completions" "--diff" "--check" \
-      "--install-file" "--install-file relative/path" "--install-file /etc/kernel/cmdline --dry-run"; do
+    # B2: verification/utility modes (non-target failures expected)
+    for mode in "--verify-static" "--verify-runtime" "--check" \
+                "--install-file" "--install-file relative/path" \
+                "--install-file /etc/kernel/cmdline"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b2.txt" &
   (
-    for mode in \
-      "--logs" "--logs list" "--logs system" "--logs analyze" \
-      "--diff /etc/kernel/cmdline" "--diff relative/path" \
-      "--diff /etc/sysctl.d/99-ry-sysctl.conf"; do
+    # B3: deprecated flags — must all return EXIT_USAGE (2)
+    for mode in "--all" "-a" "--dry-run" "-n" "--diff" "--fix" "--force" "-f" \
+                "--lint" "--test-all" "--completions" "--logs"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b3.txt" &
   (
-    for mode in \
-      "--dry-run" "-n" "--all --dry-run" "-a --dry-run" \
-      "--verbose --dry-run" "-V --dry-run" "--force --dry-run" "-f --dry-run"; do
+    # B4: --exclusive enforcement — combining mode flags must return EXIT_USAGE (2)
+    for mode in "--verify-static --verify-runtime" \
+                "--verify-static --check" \
+                "--check --install-file /etc/kernel/cmdline" \
+                "--verify-runtime --install-file /etc/kernel/cmdline"; do
       timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b4.txt" &
   wait
   cat "$D"/exit-b{1,2,3,4}.txt > "$D/exit-codes.txt"
 
-  # Group B2: stdout leak check for additional op modes
-  timeout "$RUNTIME_TIMEOUT" fish "$S" --verify-static >"$D/vs-out.txt" 2>/dev/null &
-  timeout "$RUNTIME_TIMEOUT" fish "$S" --check >"$D/check-out.txt" 2>/dev/null &
-  timeout "$RUNTIME_TIMEOUT" fish "$S" --completions >"$D/comp-out.txt" 2>/dev/null &
+  # Group B2: stdout leak check for operational modes
+  timeout "$RUNTIME_TIMEOUT" fish "$S" --verify-static  >"$D/vs-out.txt"    2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" fish "$S" --verify-runtime >"$D/vr-out.txt"    2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" fish "$S" --check          >"$D/check-out.txt" 2>/dev/null &
   wait
 
-  # Group C: dry-run + lint + test-all stderr
-  ( # C1: dry-run filesystem safety
-    # Monitor all managed parent directories, not just modprobe.d
-    _dry_dirs="/etc/modprobe.d /etc/systemd /etc/kernel /etc/NetworkManager /etc/iwd /etc/sysctl.d"
-    for _dd in $_dry_dirs /etc/mkinitcpio.conf; do stat -c '%n %Y' "$_dd" "$_dd"/* 2>/dev/null; done | sort > "$D/pre-dry.txt"
-    timeout "$RUNTIME_TIMEOUT" fish "$S" --dry-run >"$D/dry-out.txt" 2>"$D/dry-err.txt"
-    for _dd in $_dry_dirs /etc/mkinitcpio.conf; do stat -c '%n %Y' "$_dd" "$_dd"/* 2>/dev/null; done | sort > "$D/post-dry.txt"
-    diff "$D/pre-dry.txt" "$D/post-dry.txt" > "$D/dry-diff.txt"
-  ) &
-  ( # C2: lint
-    timeout "$RUNTIME_TIMEOUT" fish "$S" --lint >"$D/lint-out.txt" 2>"$D/lint-err.txt"
-  ) &
-  ( # C3: test-all (extended timeout — spawns 19 fish subprocesses); capture stderr for analysis
-    timeout $((RUNTIME_TIMEOUT * 3)) fish "$S" --test-all >/dev/null 2>"$D/test-all-err.txt"
-  ) &
-  wait
-
-  # Group D: SIGPIPE + redirect
+  # Group C: SIGPIPE + redirect bug
   /bin/bash -c '
     D="$1"; S="$2"; T="$3"
-    timeout "$T" fish "$S" --lint 2>&1 | head -n 1 >/dev/null 2>&1
-    printf -- "--lint|head -n 1 → %d\n" "${PIPESTATUS[0]}" > "$D/exit-d-sigpipe.txt"
+    timeout "$T" fish "$S" --help 2>&1 | head -n 1 >/dev/null 2>&1
+    printf -- "--help|head -n 1 → %d\n" "${PIPESTATUS[0]}" > "$D/exit-c-sigpipe.txt"
   ' _ "$D" "$S" "$RUNTIME_TIMEOUT" &
   (
     fish -c '
@@ -1794,10 +1984,10 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     rg '141' "$D/help-out.txt" 2>/dev/null | head -5 > "$D/help-141.txt"
   ) &
   wait
-  cat "$D"/exit-d-sigpipe.txt >> "$D/exit-codes.txt" 2>/dev/null
+  cat "$D"/exit-c-sigpipe.txt >> "$D/exit-codes.txt" 2>/dev/null
 
-  # Group E: NO_COLOR enforcement
-  for mode in "--lint" "--diff" "--dry-run" "--logs list"; do
+  # Group D: NO_COLOR enforcement on read-only modes (write modes need sudo+profile)
+  for mode in "--verify-static" "--verify-runtime" "--check" "--help"; do
     safename=$(echo "$mode" | tr ' ' '-')
     NO_COLOR=1 timeout "$RUNTIME_TIMEOUT" fish "$S" $mode 2>"$D/nocolor-$safename.txt" >/dev/null &
   done
@@ -1813,58 +2003,64 @@ STEP 2: ANALYSIS
   echo "=== HELP STDOUT (expect >0) ===" && wc -c "$D"/{help,h}-out.txt
   echo "=== EXIT CODES ===" && bat --plain "$D/exit-codes.txt" 2>/dev/null || cat "$D/exit-codes.txt"
   echo "=== ANSI (expect 0) ===" && { rg -c '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || grep -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || echo "none"; }
-  echo "=== DRY-RUN FS (expect empty) ===" && bat --plain "$D/dry-diff.txt" 2>/dev/null || cat "$D/dry-diff.txt"
-  echo "=== DRY-RUN [DRY] MESSAGES (expect present) ===" && { rg -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || grep -c '\[DRY\]' "$D/dry-err.txt" 2>/dev/null || echo "0"; } | tail -1
-  echo "=== OP MODE STDOUT BYTES (expect 0) ===" && wc -c "$D"/{dry-out,lint-out,vs-out,check-out,comp-out}.txt 2>/dev/null
-  echo "=== LINT ===" && bat --plain "$D/lint-err.txt" 2>/dev/null || cat "$D/lint-err.txt"
+  echo "=== OP MODE STDOUT BYTES (expect 0 except --check which must be silent) ===" && wc -c "$D"/{vs-out,vr-out,check-out}.txt 2>/dev/null
   echo "=== REDIRECT ===" && bat --plain "$D/redirect-err.txt" 2>/dev/null || cat "$D/redirect-err.txt"
-  echo "=== HELP 141 (expect hit) ===" && bat --plain "$D/help-141.txt" 2>/dev/null || cat "$D/help-141.txt"
-  echo "=== TEST-ALL STDERR (always examine) ===" && bat --plain "$D/test-all-err.txt" 2>/dev/null || cat "$D/test-all-err.txt" 2>/dev/null || echo "not yet collected"
+  echo "=== HELP 141 (expect hit in help text) ===" && bat --plain "$D/help-141.txt" 2>/dev/null || cat "$D/help-141.txt"
   echo "=== VERSION CONTENT ===" && { VER_OUT=$(head -n 1 "$D/ver-out.txt" | sed 's/^v//'); VER_GLOBAL=$(rg -oP 'VERSION "\K[^"]+' "$S" 2>/dev/null || rg -o 'VERSION "[^"]+' "$S" | sed 's/VERSION "//'); echo "stdout: $VER_OUT"; echo "global: $VER_GLOBAL"; test "$VER_OUT" = "$VER_GLOBAL" && echo "MATCH" || echo "MISMATCH"; }
   echo "=== FLAG EQUIVALENCE ===" && { diff "$D/help-out.txt" "$D/h-out.txt" >/dev/null 2>&1 && echo "--help/-h: MATCH" || echo "--help/-h: MISMATCH"; diff "$D/ver-out.txt" "$D/v-out.txt" >/dev/null 2>&1 && echo "--version/-v: MATCH" || echo "--version/-v: MISMATCH"; }
+  echo "=== DEPRECATED FLAGS (all must → 2) ===" && grep -E '^(--all|-a|--dry-run|-n|--diff|--fix|--force|-f|--lint|--test-all|--completions|--logs) →' "$D/exit-codes.txt"
+  echo "=== EXCLUSIVE VIOLATIONS (all must → 2) ===" && grep -E '^--verify-static --|^--verify-runtime --|^--check --' "$D/exit-codes.txt"
   ```
 
 STEP 3: CHECKLIST
 
   12.1 STDOUT/STDERR SEPARATION
-       [ ] 239. --help: stdout content, 0 stderr
+       [ ] 239. --help: stdout content >0, 0 stderr; --help/-h match;
+                help text references exit codes 0/1/2/3/4/5/10/129/130/131/141/143
        [ ] 240. --version: stdout version, 0 stderr; stdout content
-               matches `set -g VERSION` value
-       [ ] 241. Op modes: all to stderr, 0 stdout
-       [ ] 242. Errors: stderr only, 0 stdout
+                matches `set -g VERSION` value; --version/-v match
+       [ ] 241. Read-only modes (--verify-static, --verify-runtime): UI to stderr,
+                0 stdout bytes on success path; --check is fully silent
+                (QUIET=true) — both stdout AND stderr 0 bytes on clean exit
 
   12.2 EXIT CODE MATRIX
-       [ ] 243. 0: --help, -h, --version, -v, --lint, --completions,
-               --logs list/system, --dry-run, -n,
-               -a --dry-run
-               NON-TARGET: --test-all may return 1, --check returns 10
-               (drift), --verify-* returns 1 (missing configs). Always examine stderr to distinguish
-               expected non-target failures from real bugs.
-       [ ] 244. 2: invalid flag, conflicts, modifier-only,
-               --install-file no path, --install-file relative/path,
-               --diff relative/path
-       [ ] 245. 1: runtime failures
+       [ ] 242. 0: --help, -h, --version, -v; --check when clean.
+                Non-target expected: --verify-static/-runtime return 1
+                (missing configs), --check returns 3 (preflight) or 10 (drift).
+                Always examine stderr to distinguish expected non-target
+                failures from real bugs.
+       [ ] 243. 2 (EXIT_USAGE): --bogus, --install-file without value,
+                --install-file relative/path, --install-file -flag,
+                any deprecated flag (--all, -a, --dry-run, -n, --diff,
+                --fix, --force, -f, --lint, --test-all, --completions, --logs),
+                any combination of mode flags (--verify-static --check etc.)
+       [ ] 244. argparse --exclusive: verify-static/verify-runtime/check/install-file
+                mutually exclusive; combining any two → exit 2 with
+                `[ERR] Invalid arguments` message via argparse rejection.
+       [ ] 245. 3 (EXIT_PREFLIGHT): --check when sudo unavailable, root
+                UUID missing, or content pregeneration fails.
+                10 (EXIT_DRIFT): --check when prereqs OK but managed files
+                drift from embedded content.
 
-  12.3 OPTION VALIDATION
-       [ ] 246. Every flag accepted; modifier guards enforced
-       [ ] 247. Multiple modes → exit 2; -- stops parsing
-       [ ] 248. --install-file no path → exit 2 (pre-lock);
-               --install-file relative/path → exit 2 (pre-lock);
-               --diff: non-absolute → 2, non-managed → 1
+  12.3 DEPRECATED FLAG HANDLING
+       [ ] 246. All 12 deprecated flags emit specific `[ERR]` message via
+                _early_usage_exit and exit EXIT_USAGE. Message format:
+                "<flag> is no longer required/removed; <alternative>".
+                No flag silently succeeds; none fall through to install.
+
   12.4 NO_COLOR
-       [ ] 249. 0 ANSI escapes across ALL modes with NO_COLOR=1
+       [ ] 247. 0 ANSI escapes across ALL modes with NO_COLOR=1
+                (--verify-static, --verify-runtime, --check, --help).
 
-  12.5 DRY-RUN
-       [ ] 250. [DRY] messages, 0 filesystem changes
+  12.5 REDIRECT BUG REGRESSION
+       [ ] 248. `string trim -- (cat -- /nonexistent 2>/dev/null)` produces
+                no stderr leak. Guards against Fish redirect-leak bug
+                (check 143 runtime test).
 
-  12.6 INTERNAL CONSISTENCY
-       [ ] 251. --lint passes; --test-all: always examine stderr output.
-               All WARN/FAIL lines must be explained by non-target
-               environment OR flagged as findings. Do not dismiss
-               exit 1 as "container-adjusted" without reading output.
-       [ ] 252. --logs no sub-target → exit 2; --logs analyze missing → 1
-  12.7 MODE-SPECIFIC
-       [ ] 253. --diff <path>: shows single file diff
+  12.6 SIGPIPE + SIGNAL EXITS
+       [ ] 249. Help | head -n 1 returns 141 (SIGPIPE) — _cleanup_pipe fires
+                with no stderr leak. Help text documents 129/130/131/143
+                (HUP/INT/QUIT/TERM via _cleanup handler case-branches).
 
 
 ═══════════════════════════════════════════════════════════════
@@ -1900,30 +2096,35 @@ STEP 2: SUMMARY TABLE
     8      | 1    | 19     |      |      |
     9      | 1    | 9      |      |      |
    10     | 1    | 11     |      |      |
-   11     | 1    | 14     |      |      |
-   12     | 2    | 15     |      |      |
+   11     | 1    | 11     |      |      |
+   12     | 2    | 11     |      |      |
    13     | 1    | 5      |      |      |
-   14     | 1    | 124    |      |      |
+   14     | 1    | 158    |      |      |
    15     | 1    | 19     |      |      |
-  TOTAL  |      | 330    |      |      |
+  TOTAL  |      | 357    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
   SPECIAL HANDLING:
     Always PASS       137 (forbidden-pattern false-positive doc; pattern
                       list documented intentionally, never fires)
-    Runtime only      143 (redirect regression), PASS 2 checks (15)
+    Runtime only      143 (redirect regression), PASS 2 checks (11)
     Expect 0 hits     83 (no modules-load.d dest), 171 (KVER init),
                       176, 177 (functional; comments exempt),
                       193 (dead globals removed), 257, 259, 260,
                       263, 268, 273, 283, 289, 290, 291, 292,
-                      296 (deprecated test -o/-a) — all regressions
-    WARN not exit 2   247 (modifier-only flags: warn, do not abort)
-    Timeout exit     124 from timeout(1) if mode exceeds RUNTIME_TIMEOUT;
-                      retry with higher timeout or mark DEFERRED
-    Examine stderr    --test-all exit 1 on non-target: always inspect
-                      stderr output, do not categorize as "container-adjusted"
-                      without reading actual failure messages (v3.4.1 lesson)
+                      296 (deprecated test -o/-a),
+                      334 (--lint removed v3.48.20),
+                      335 (_get_boot_time, _progress_skip, _ry_count_managed_cases inlined/merged/replaced),
+                      348 (irqbalance no longer in MASK v4.0.0),
+                      357 (--test-all removed v4.1.0),
+                      358 (--completions removed v4.1.0),
+                      367 (no redundant `finished` field)
+                      — all regressions
+    Examine stderr    --verify-static/runtime exit 1 on non-target: always
+                      inspect stderr output, do not categorize as
+                      "container-adjusted" without reading actual failure.
+    --check exit 3 or 10 expected in audit container (preflight or drift).
 
   Verdict: deploy-ready | fix-required | redesign-needed
 
