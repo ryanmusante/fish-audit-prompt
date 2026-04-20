@@ -1,13 +1,13 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-4.0.0-blue)
+![version](https://img.shields.io/badge/version-4.1.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange)
-![checks](https://img.shields.io/badge/checks-357-brightgreen)
+![checks](https://img.shields.io/badge/checks-368-brightgreen)
 
 A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, external profile loading, and argparse-dispatched modes with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
 
-Derived from `ry-install.fish` v4.1.3 · 357 checks across 16 phases · Prompt v4.0.0
+Derived from `ry-install.fish` v4.1.4 · 368 checks across 16 phases · Prompt v4.1.0
 
 [changelog](CHANGELOG.md)
 
@@ -26,11 +26,11 @@ Derived from `ry-install.fish` v4.1.3 · 357 checks across 16 phases · Prompt v
 
 | Metric | Value |
 |---|---|
-| Total checks | 357 (346 static + 11 runtime) |
+| Total checks | 368 (357 static + 11 runtime) |
 | Phases | 16 (11 static · 1 runtime · 1 gap analysis · 1 version-specifics · 1 supplemental · 1 profile-system) |
 | Passes | 3 (gather+analyze · runtime · finalize) |
 | Retired checks | 168–170 (backup/rollback/--dry-run, ry-install v3.5.0–v4.1.0) |
-| Added checks | 334–367 (v3.47.0–v4.1.3: source-safety, profile system, argparse dispatcher, _tmpfile_key, SIG-prefix signal matching, SYU/BOOT_WIPE ack gates, nftables firewall, etc.) |
+| Added checks | 334–378 (v3.47.0–v4.1.4: source-safety, profile system, argparse dispatcher, _tmpfile_key parity + collision guard, SIG-prefix signal matching, SYU/BOOT_WIPE ack gates, nftables firewall, pkill descendant reap, etc.) |
 
 ## Audit Structure
 
@@ -57,7 +57,7 @@ Derived from `ry-install.fish` v4.1.3 · 357 checks across 16 phases · Prompt v
 | 11 | 11 | Testing and validation |
 | 12 | 11 | Runtime tests |
 | 13 | 5 | Gap analysis |
-| 14 | 158 | Version-specific (v3.1.0–v4.1.3 + Fish 4.0–4.6 compat) |
+| 14 | 169 | Version-specific (v3.1.0–v4.1.4 + Fish 4.0–4.6 compat) |
 | 15 | 19 | Supplemental deep checks + profile-system invariants |
 
 ## Prerequisites
@@ -89,7 +89,7 @@ Each audit produces:
 
 | File | Description |
 |---|---|
-| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v4.0.0) |
+| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v4.1.0) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history |
 | [`LICENSE`](LICENSE) | MIT license |
 | [`README.md`](README.md) | This file |

@@ -1,15 +1,15 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 4.0.0
-Derived from: ry-install.fish v4.1.3 audit (2026-04-19)
-Checks: 357
-Phases: 16 (11 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v4.1.3 + 1 supplemental + 1 profile system)
+Version: 4.1.0
+Derived from: ry-install.fish v4.1.4 audit (2026-04-19)
+Checks: 368
+Phases: 16 (11 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v4.1.4 + 1 supplemental + 1 profile system)
 
 ───────────────────────────────────────────────────────────────
  PURPOSE
 ───────────────────────────────────────────────────────────────
 
-357-check audit (346 static + 11 runtime) for production fish scripts managing system config,
+368-check audit (357 static + 11 runtime) for production fish scripts managing system config,
 sudo, credentials, embedded configs, external profile loading, and argparse-dispatched
 modes with verification subsystems.
 
@@ -31,8 +31,7 @@ STEP 1: COPY + TOOLS
 
   apt-get update -q 2>/dev/null && \
     apt-get install -y fish fd-find bat 2>/dev/null; true
-  # Pin rg >= 14.1.1: Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884.
-  # Re-verify pinned version against current Ubuntu LTS rg ship before each release.
+  # Pin rg >= 14.1.1 (Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884); re-verify pinned version against current Ubuntu LTS rg ship before each release.
   if ! rg --version 2>/dev/null | grep -qE '14\.1\.[1-9]|14\.[2-9]|1[5-9]\.|[2-9][0-9]\.'; then
     curl -sLO https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep_14.1.1-1_amd64.deb && \
       dpkg -i ripgrep_14.1.1-1_amd64.deb && rm -f ripgrep_14.1.1-1_amd64.deb
@@ -77,7 +76,7 @@ STEP 2: FALLBACKS (bash-only — do not fish-ify)
 
 STEP 3: SAVE CHECKLIST TO DISK
 
-  Save the 346-check static analysis checklist (phases 1-11, 13-15;
+  Save the 357-check static analysis checklist (phases 1-11, 13-15;
   phase 12's 11 runtime checks are inline in PASS 2) from the
   CHECKLIST REFERENCE section (at end of this document) to
   /home/claude/audit-data/checklist.txt.
@@ -86,11 +85,11 @@ STEP 3: SAVE CHECKLIST TO DISK
   "CHECKLIST REFERENCE" header through end of Phase 15, then write
   that content to /home/claude/audit-data/checklist.txt via
   create_file or bash heredoc. Copy verbatim — do not regenerate or
-  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 346.
+  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 357.
 
   PASS 2 runtime count verification (inline in PASS 2 section):
     grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 11.
-    Total: 346 + 11 = 357.
+    Total: 357 + 11 = 368.
 
   Read phases on demand during analysis:
     bat --plain -r START:END /home/claude/audit-data/checklist.txt
@@ -351,7 +350,7 @@ for i, line in enumerate(lines, 1):
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v4.1.3 specifics ──
+  # ── GROUP D: P14 v3.1.0–v4.1.4 specifics ──
   ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -595,7 +594,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V3460 NOATIME DEDUP ===" && rg -n 'noatime.*already|already.*noatime|match.*noatime' "$F" | head -10
     echo "=== V3460 USBHID REMOVED ===" && rg -n 'usbhid' "$F" | head -5
     echo "=== V3460 COREDUMP VERIFY ===" && rg -n 'Storage=none|ProcessSizeMax|coredump.*verify|verify.*coredump' "$F" | head -10
-    # ── v3.47.0–v4.1.3 additions ──
+    # ── v3.47.0–v4.1.4 additions ──
     echo "=== V3480 LINT REMOVED ===" && rg -n '_ry_do_lint|do_lint\b|--lint\b' "$F" | rg -v '#|_err|_warn|_fail|deprecated|removed' | head -10
     echo "=== V410 TEST_ALL REMOVED ===" && rg -n '_ry_do_test_all|do_test_all\b|--test-all\b' "$F" | rg -v '#|removed|deprecated' | head -10
     echo "=== V410 COMPLETIONS REMOVED ===" && rg -n '_ry_do_completions|--completions\b' "$F" | rg -v '#|removed|deprecated' | head -10
@@ -648,14 +647,25 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V413 EXIT TRIPLE FORM ===" && rg -c '_ry_exit \$[A-Z_]+; and return \$[A-Z_]+; or return \$[A-Z_]+' "$F"
     echo "=== V413 DISPATCHER EXCLUSIVE ===" && rg -n '\-\-exclusive=verify-static,verify-runtime,check,install-file' "$F" | head -3
     echo "=== MANAGED_FILE_COUNT ===" && rg -n '_RY_MANAGED_FILE_COUNT|_RY_MANAGED_CASE_COUNT' "$F" | head -5
+    # ── v4.1.4 additions ──
+    echo "=== V414 TMPFILE_KEY IMPL ===" && _py_extract "$F" "_tmpfile_key" | head -5
+    echo "=== V414 TMPFILE_KEY SHA RETIRED ===" && _py_extract "$F" "_tmpfile_key" | rg 'sha256sum|string sub --length 8' | head -5
+    echo "=== V414 TMPFILE_KEY SITES ===" && rg -c '_tmpfile_key' "$F"
+    echo "=== V414 VALIDATE PROFILE COLLISION GUARD ===" && rg -n 'Profile destination key collision|_seen_keys' "$F" | head -10
+    echo "=== V414 PHASE RCS REMOVED ===" && rg -n '_phase_rcs|_rc_config|_rc_units|_rc_env|_rc_sudoers|_rc_fish' "$F" | head -5
+    echo "=== V414 HASH RCS REMOVED ===" && rg -n 'hash_rcs|_any_hash_worker_timeout' "$F" | head -5
+    echo "=== V414 TIMEOUT SENTINEL REMOVED ===" && rg -n 'contains -- .*124 137 143|_phase_rc.*124' "$F" | head -5
+    echo "=== V414 SVC_DSTS EMPTY GUARD ===" && rg -n 'count .svc_dsts. -eq 0|test .count .svc_dsts..* -eq 0' "$F" | head -5
+    echo "=== V414 KEEPALIVE PKILL ===" && rg -n 'pkill -TERM -P|pkill -KILL -P' "$F" | head -10
+    echo "=== V414 DETECT_LVM TIMEOUT ===" && rg -n 'timeout 10 sudo -n pvs|timeout 5 sudo -n pvs' "$F" | head -5
+    echo "=== V414 NETWORK CONNECT TIMEOUT 3 ===" && rg -n '\-\-connect-timeout 3 --max-time 5' "$F" | head -5
+    echo "=== V414 NEWSFEED CONNECT TIMEOUT 2 ===" && rg -n '\-\-connect-timeout 2 --max-time 5' "$F" | head -5
+    echo "=== V414 RUN STDERR FISH TRIM ===" && rg -n 'string trim --left' "$F" | head -10
+    echo "=== V414 RUN STDERR SED RETIRED ===" && rg -n "command sed 's/\^ \*//'" "$F" | head -5
+    echo "=== V414 BOOT_TIME LC_ALL ===" && rg -n 'LC_ALL=C printf "%.0f"' "$F" | head -5
   ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
-  # ── GROUP E: P13 gap analysis (race/error/edge tracing) ──
-  # DEPENDS ON GROUP D at analysis time (not collection time):
-  # 11 shared patterns (FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
-  # BOOT_SANITY, etc.) are collected in GROUP D's p14.txt.
-  # GROUP E collects independent data to p13.txt; both files are
-  # cross-referenced during STEP 2 ANALYZE.
+  # GROUP E: P13 gap analysis (race/error/edge tracing). Depends on GROUP D at analysis time (not collection time); 11 shared patterns (FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE, BOOT_SANITY, etc.) collected in GROUP D's p14.txt. GROUP E collects independent data to p13.txt; both files cross-referenced during STEP 2 ANALYZE.
   ( set -uo pipefail; (
     echo "=== TMPFILE LIFECYCLE ===" && python3 -ISc "
 import re, sys
@@ -715,10 +725,9 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
     fi
   done
 
-  # ── Post-wait data guard (D and E collect independently; E's ──
-  # ── P13 analysis reads p14.txt for 11 shared patterns)       ──
+  # Post-wait data guard (D and E collect independently; E's P13 analysis reads p14.txt for 11 shared patterns).
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.1.3 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.1.4 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -737,7 +746,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14 (v3.1.0-v4.1.3 specifics)" ;;
+        p14)    phases="P14 (v3.1.0-v4.1.4 specifics)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -790,7 +799,7 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phase 14 (version specifics v3.1.0-v4.1.3)
+    p14.txt   → Phase 14 (version specifics v3.1.0-v4.1.4)
     Phase 15 deep checks use data from ALL files above (not just p14.txt).
 
   If p14.txt is missing or truncated, mark shared-pattern P13
@@ -807,7 +816,7 @@ STEP 2: ANALYZE ON DISK
     "PASS 1 complete. N findings (N CRIT, N HIGH, N MED, N LOW, N INFO).
      Phases 1-11, 13-15 analyzed. Proceeding to PASS 2.
      Per-phase tally: P1:N P2:N P3:N P4:N P5:N P6:N P7:N P8:N P9:N
-     P10:N P11:N P13:N P14:N P15:N (must sum to 346)."
+     P10:N P11:N P13:N P14:N P15:N (must sum to 357)."
 
   Do NOT paste raw rg output into context.
 
@@ -1159,10 +1168,11 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-367,
+  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-378,
   P15 → #215-233, P12 → #239-249. Checks 168-170 retired in v4.0.0 audit
   prompt (rollback/backup/--dry-run features removed from ry-install v3.5.0–v4.1.0).
   Checks 334-367 added in v4.0.0 audit prompt covering ry-install v3.47.0–v4.1.3.
+  Checks 368-378 added in v4.1.0 audit prompt covering ry-install v4.1.4.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
 
@@ -1181,7 +1191,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v4.1.3 Specifics (158 checks) ───────────
+─── Phase 14: v3.1.0–v4.1.4 Specifics (169 checks) ───────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1235,8 +1245,12 @@ STEP 2: ANALYZE ON DISK
   14.6 AUDIT FIXES (v3.1.1–v3.2.10)
        [ ] 183. _install_finalize returns 1 when INSTALL_HAD_ERRORS=true.
        [ ] 184. cat -- terminators in _run capture paths.
-       [ ] 185. --description + comment coverage: function count = 80 =
-               description count. 17 section markers (── style).
+       [ ] 185. --description + comment coverage: function count = 76 =
+               description count (100% --description coverage). Section
+               markers: 3 top-level `# UPPERCASE LABEL` blocks
+               (PROFILE LOADER; LOGGING, MESSAGE OUTPUT, AND VERIFICATION
+               COUNTERS; CLI ARGUMENT PARSING AND DISPATCH).
+               Box-drawing `# ── X ──` style from v3.2.6 era retired.
 
   14.7 ORPHAN LOG + RACE FIXES (v3.2.2–v3.2.3)
        [ ] 186. Orphan log cleanup: every exit 2 preceded by LOG_FILE guard.
@@ -1267,30 +1281,53 @@ STEP 2: ANALYZE ON DISK
                end-of-options marker in _ry_verify_runtime cmdline check.
 
   14.10 CODE QUALITY (v3.2.6–v3.2.10)
-       [ ] 195. Section headers: 17 `# ── Description ──` markers.
-       [ ] 196. Function comment coverage: 79/80 with nearby # comment.
-       [ ] 197. `command` prefix on ≥138 coreutils calls. No bare coreutils
-               outside sudo context.
-       [ ] 198. --argument-names on ≥20 functions.
+       [ ] 195. Section headers: 3 top-level `# UPPERCASE LABEL` blocks.
+                Legacy `# ── Description ──` box-drawing markers (v3.2.6
+                convention) fully retired; current style is unadorned
+                uppercase capsule comments. rg '^# [A-Z][A-Z ,]{5,}$' → 3.
+       [ ] 196. Function comment coverage: all 76 functions carry
+                --description (100%); ~60 of 76 additionally have a
+                free-form `# ...` comment within 2 lines above the
+                function header. Missing-comment exceptions are limited
+                to trivial one-liner helpers whose --description is
+                self-explanatory.
+       [ ] 197. `command` prefix on ≥150 coreutils calls. No bare coreutils
+                outside sudo context (rg baseline ~162 for v4.1.4).
+       [ ] 198. --argument-names on ≥20 functions (v4.1.4 baseline 21).
 
   14.11 SCOPING + ROLLBACK (v3.2.9–v3.2.10)
-       [ ] 199. In-function set -g: ~130 (intentional VERIFY_*/flag globals).
+       [ ] 199. In-function set -g: ~115 (intentional VERIFY_*/flag globals;
+                v4.1.4 baseline 113). Cross-block bare set: ~145
+                (v4.1.4 baseline 144). Ratios drift ±10% release-to-release;
+                absolute counts are trend indicators, not pass gates.
 
   14.12 LOGGING + VERIFICATION (v3.2.8–v3.2.10)
-       [ ] 200. _log START/END markers on 6 modes. rg START → 6, END → 7.
-               Symmetric naming: mode name without extra qualifiers
-               (e.g. "LINT START" not "LINT CHECK START"; v3.5.2).
-       [ ] 201. 28 section/block comments: managed destinations, logging/counters,
-               file operations, runtime verification, lint,
-               install pipeline, CLI argument parsing, diagnostic helpers,
-               signal/cleanup chain, and more.
+       [ ] 200. _log START/END markers on surviving modes. Format:
+               `=== MODE START ===` / `=== MODE END ===` (v4.1.4-current).
+               4 modes: STATIC VERIFICATION, RUNTIME VERIFICATION,
+               INSTALLATION, INSTALL-FILE. Expected hit counts:
+               rg '_log "=== .* START ===' → 4 (one per mode entry point);
+               rg '_log "=== .* END ===' → 9 (one per mode exit branch,
+               verification modes have 2 each, install-file has 4).
+       [ ] 201. In-code section markers organize major subsystems
+                (profile loader, logging/counters, CLI dispatch, install
+                pipeline, verification modes, signal/cleanup chain,
+                tmpfile lifecycle, parallel batch jobs). Style is
+                uppercase-led capsule comments immediately above the
+                subsystem functions (no box-drawing). Exact count
+                drifts release-to-release; the invariant is readability,
+                not a fixed number.
        [ ] 202. Post-write sha256: _ry_install_file verifies destination hash
                after atomic mv. Failure → INSTALL_HAD_ERRORS.
        [ ] 203. WiFi credentials: set before use, erased after iwd config.
                Not stored as globals beyond pipeline.
-       [ ] 204. Unconditional log rotation for all modes. ~686 vars have
-               explicit set -l. ~313 bare set for cross-block vars.
-               _run wraps ≥85 commands for logging.
+       [ ] 204. Unconditional log rotation for all modes. Scope invariants:
+                set -l for true locals, bare set for cross-block updaters,
+                set -g only for intentional globals. v4.1.4 baselines:
+                ~378 set -l, ~144 bare set, ~113 in-function set -g.
+                _run wraps ≥50 commands for logging (v4.1.4 baseline ~58).
+                These are drift indicators (±15% normal between releases),
+                not pass gates — sudden large deltas warrant investigation.
 
   14.13 STDOUT + SECURITY (v3.2.10)
        [ ] 205. All UI output → stderr. Intentional stdout: return-value
@@ -1319,19 +1356,24 @@ STEP 2: ANALYZE ON DISK
                Note: --lint mode removed v3.48.20 — scope shadow detection
                now relies entirely on GROUP D python3 scope-stack detector;
                no script-side checker remains.
-       [ ] 212. Cross-block vars use bare set: _ry_do_diff (has_diff,
-               has_pacnew, this_diff, actual_perms, actual_owner,
-               target_owner), _ry_do_lint (has_errors),
-               _ry_verify_runtime (perms), _ry_validate_configs (errors),
-               _progress (bar/desc), _preflight_boot_sanity (errors),
-               _install_configure_services (to_del),
-               _ry_do_test_all (total/passed),
-               _ry_install_file (_cur_content),
-               _install_collect_wifi (wlan_iface, wifi_pass),
-               _install_finalize (reload_wait, wifi_retry).
-       [ ] 213. In-function set -g count: ~197 (intentional VERIFY_*/flag
-               globals). Bare set count: ~274 (cross-block
-               updaters). set -l count: ~643.
+       [ ] 212. Cross-block vars use bare set in surviving functions
+                (removed modes excluded): _ry_verify_runtime (perms),
+                _ry_validate_configs (errors), _progress (bar/desc),
+                _preflight_boot_sanity (errors),
+                _install_configure_services (to_del),
+                _ry_install_file (_cur_content),
+                _ry_do_install_file (target resolution state),
+                _install_finalize (reload_wait, wifi_retry).
+                NOTE: _ry_do_diff/_ry_do_lint/_ry_do_test_all function
+                examples from v3.3.x audit era retired with those modes
+                (v3.48.20 + v4.1.0); _install_collect_wifi inlined into
+                preflight path.
+       [ ] 213. v4.1.4 scope baselines: in-function set -g ~113
+                (intentional VERIFY_*/flag globals). Bare set ~144
+                (cross-block updaters). set -l ~378 (true locals).
+                Ratios matter more than absolute counts (see check 204).
+                Regression signal: set -g count rising sharply without
+                new global introductions in changelog.
        [ ] 214. _analyze_log removed: 0 hits. Step timing consolidated
                into _emit_step_time helper (v3.40.0).
 
@@ -1730,9 +1772,12 @@ STEP 2: ANALYZE ON DISK
                 rg 'timeout.*--preserve-status|--preserve-status.*timeout' → ≥11.
        [ ] 355. _ry_verify_static terminal case '*' catch-all (v4.0.2):
                 result switch has wildcard final clause; partial-write
-                payloads no longer silently skip. Workers use per-pid wait
-                to capture timeout sentinels 124/137/143 (v4.0.2).
-                rg 'contains -- .*124 137 143|_phase_rc.*124' → ≥1.
+                payloads no longer silently skip.
+                NOTE: v4.0.2's per-pid wait + 124/137/143 sentinel capture
+                was RETIRED in v4.1.4 (hash_rcs + _any_hash_worker_timeout
+                removed; Fish's `wait` returns 0 regardless of child exit,
+                making sentinels unobservable). See check 371.
+                rg 'case .\*.' in _ry_verify_static body → ≥1 hit.
        [ ] 356. Hash pipeline pipestatus guard (v4.0.3): 8 sites capture
                 raw line, snapshot $pipestatus, guard on `_ps[1]=0; and _ps[2]=0`.
                 Empty-stdin SHA (e3b0c44…) no longer masks cat failure.
@@ -1774,11 +1819,17 @@ STEP 2: ANALYZE ON DISK
        [ ] 364. flock dependency soft (v4.1.2): _ry_check_deps reclassifies
                 flock(1) HARD→SOFT; fallback to PID-re-verify exists.
                 Missing flock no longer aborts.
-       [ ] 365. _tmpfile_key helper (v4.1.3): 8-char sha256 prefix prepended
-                to destination path; replaces naive `string replace -a '/' '_'`
-                at 7 call sites. Closes `/` vs `_` collision trap
-                (e.g., `a/b` and `a_b` mapped to same key pre-fix).
-                rg '_tmpfile_key' → 1 definition + 7 call sites = ≥8 hits.
+       [ ] 365. _tmpfile_key helper (v4.1.3 introduced, v4.1.4 reverted):
+                impl is `string replace -a '/' '_' -- "$path"`. The 8-char
+                sha256 prefix from v4.1.3 was dropped in v4.1.4 — producer
+                had been emitting hashed filenames while all 8 child-side
+                consumers (5 _ry_validate_configs jobs + _ry_verify_static
+                hash worker + _ry_do_check Jobs 1-2) read unhashed, causing
+                --verify-static, --check, and config validation mismatch.
+                Collision trap (`/a/b` vs `/a_b` → same key) now guarded
+                at profile load time (see check 369), not in the helper.
+                rg '_tmpfile_key' → 1 definition + 7 call sites = 8 hits.
+                rg 'sha256sum.*_tmpfile_key|_tmpfile_key.*sha256' → 0 hits.
        [ ] 366. Dispatcher rewrite (v4.1.3): manual while/switch replaced
                 with `argparse --exclusive=verify-static,verify-runtime,check,install-file`.
                 Parity preserved across 13 flag scenarios. `--exclusive`
@@ -1798,6 +1849,75 @@ STEP 2: ANALYZE ON DISK
                 Exit-propagation: 6 _load_profile sites normalized to triple-form
                 `_ry_exit $CODE; and return $CODE; or return $CODE`.
                 rg '"finished":' → 0 hits; rg 'implicit_svcs' → ≥1 derivation site.
+
+  14.29 v4.1.4 PARITY + HARDENING (11 checks)
+       [ ] 368. _tmpfile_key impl reverted (v4.1.4): dropped 8-char sha256
+                prefix introduced in v4.1.3; body is a single
+                `string replace -a '/' '_' -- "$path"`. Parity restored
+                between producer and 8 child-side key derivations
+                (5 _ry_validate_configs jobs + _ry_verify_static hash
+                worker + _ry_do_check Jobs 1-2). Regression: rg in
+                _tmpfile_key body 'sha256sum|string sub --length 8' → 0 hits.
+       [ ] 369. _validate_profile tmpfile-key collision guard (v4.1.4):
+                iterates SYSTEM_DESTINATIONS + USER_DESTINATIONS +
+                SERVICE_DESTINATIONS, computes slash→underscore key for
+                each, rejects first duplicate with _err + return 1.
+                Replaces the in-helper sha256 collision defense from
+                v4.1.3 (now retired — see check 368).
+                rg 'Profile destination key collision' → 1 hit.
+                rg '_seen_keys' in _validate_profile body → ≥2 hits.
+       [ ] 370. _ry_validate_configs merge loop simplified (v4.1.4):
+                removed 5 × `_rc_<phase>` captures, `_phase_rcs` map, and
+                the timeout-vs-crash branch. Fish's `wait` returns 0
+                regardless of child exit, so sentinel values 124/137/143
+                were never observable; the file-presence check now
+                handles both cases uniformly.
+                rg '_phase_rcs|_rc_config|_rc_units|_rc_env|_rc_sudoers|_rc_fish' → 0 hits.
+       [ ] 371. _ry_verify_static hash-worker collector simplified (v4.1.4):
+                removed `hash_rcs` array and `_any_hash_worker_timeout`;
+                collapsed the phantom "hash worker timeout" branch into
+                the single "no result" FAIL. Consistent with check 370
+                rationale (Fish `wait` masks child rc).
+                rg 'hash_rcs|_any_hash_worker_timeout' → 0 hits.
+                rg 'contains -- .*124 137 143|_phase_rc.*124' → 0 hits.
+       [ ] 372. _ry_validate_configs Job 2 empty svc_dsts guard (v4.1.4):
+                when no `.service` destinations are present, writes
+                `units.errors=0` to $val_dir and exits early. Prevents
+                spurious "no units to validate" failures on profiles
+                with SERVICE_DESTINATIONS empty.
+                rg 'count .svc_dsts. -eq 0' or equivalent empty-guard
+                pattern in Job 2 body → ≥1 hit.
+       [ ] 373. _kill_sudo_keepalive pkill descendant reap (v4.1.4):
+                `pkill -TERM -P <pid>` added before SIGTERM on parent,
+                then `pkill -KILL -P <pid>` before SIGKILL. Reaps
+                `sleep`/`sudo` children that would otherwise orphan to
+                init when parent fish exits. pkill gated on `command -q`.
+                rg 'pkill -TERM -P|pkill -KILL -P' in _kill_sudo_keepalive
+                body → ≥2 hits.
+       [ ] 374. _detect_lvm timeout bump (v4.1.4): `command timeout 5` →
+                `timeout 10` for slow PAM/NSS paths on first sudo after
+                keepalive expiry. rg 'timeout 10 sudo -n pvs' → 1 hit.
+                No remaining `timeout 5 sudo -n pvs` in _detect_lvm.
+       [ ] 375. _ry_check_network curl probe (v4.1.4): `--connect-timeout 3`
+                added alongside `--max-time 5`. Separates connect
+                latency from total wall-clock to distinguish offline
+                vs slow-DNS vs slow-response paths.
+                rg '\-\-connect-timeout 3 --max-time 5' in _ry_check_network
+                body → ≥1 hit.
+       [ ] 376. News-feed probe in _install_rebuild_boot (v4.1.4):
+                `--connect-timeout 2 --max-time 5` on RSS fetch.
+                Non-blocking (curl -sf), does not gate install.
+                rg '\-\-connect-timeout 2 --max-time 5' → ≥1 hit.
+       [ ] 377. _run stderr dedup fish-native (v4.1.4): `command sed 's/^ *//'`
+                → `string trim --left`. Drops external sed fork in the
+                hot path of every _run call with non-trivial stderr.
+                rg 'string trim --left' in _run body → ≥1 hit.
+                rg "command sed .s/\^ \*//" → 0 hits.
+       [ ] 378. Boot-time parse LC_ALL=C (v4.1.4): `LC_ALL=C printf "%.0f"`
+                in _ry_verify_runtime for locale-safe float→int conversion.
+                Non-C LC_NUMERIC (e.g., de_DE.UTF-8 uses `,` as decimal
+                separator) would return 0, masking real boot-time regressions.
+                rg 'LC_ALL=C printf "%.0f"' → ≥1 hit in _ry_verify_runtime.
 
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
@@ -1907,15 +2027,13 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     echo "PASS 2 pre-flight: OK (fish $FISH_VER)"
   fi
 
-  # NON-TARGET HARDWARE: These modes return non-zero on audit containers
-  # (missing hardware/configs/profile). Do NOT flag as bugs:
+  # NON-TARGET HARDWARE: these modes return non-zero on audit containers (missing hardware/configs/profile). Do NOT flag as bugs:
   #   --verify-runtime → 1 (no managed files)
   #   --verify-static  → 1 (no managed files deployed)
   #   --check          → 3 (preflight: root UUID missing) or 10 (drift)
   #   (no-args install) → non-zero (sudo / root UUID unavailable in container)
   # Flag as bugs ONLY if exit code differs from expected on target.
-  # REMOVED MODES (v3.48.20–v4.1.0): --lint, --test-all, --completions, --logs, --diff, --dry-run, --all, --fix, --force
-  # These must return EXIT_USAGE (2) via argparse rejection or deprecated-flag handler.
+  # REMOVED MODES (v3.48.20–v4.1.0): --lint, --test-all, --completions, --logs, --diff, --dry-run, --all, --fix, --force. These must return EXIT_USAGE (2) via argparse rejection or deprecated-flag handler.
 
   D=/home/claude/audit-data/runtime
   mkdir -p "$D"
@@ -2099,9 +2217,9 @@ STEP 2: SUMMARY TABLE
    11     | 1    | 11     |      |      |
    12     | 2    | 11     |      |      |
    13     | 1    | 5      |      |      |
-   14     | 1    | 158    |      |      |
+   14     | 1    | 169    |      |      |
    15     | 1    | 19     |      |      |
-  TOTAL  |      | 357    |      |      |
+  TOTAL  |      | 368    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
@@ -2119,7 +2237,12 @@ STEP 2: SUMMARY TABLE
                       348 (irqbalance no longer in MASK v4.0.0),
                       357 (--test-all removed v4.1.0),
                       358 (--completions removed v4.1.0),
-                      367 (no redundant `finished` field)
+                      367 (no redundant `finished` field),
+                      368 (sha256 prefix retired in _tmpfile_key v4.1.4),
+                      370 (_phase_rcs + _rc_<phase> removed v4.1.4),
+                      371 (hash_rcs + _any_hash_worker_timeout removed v4.1.4;
+                           124/137/143 sentinels phantom),
+                      377 (command sed 's/^ *//' replaced by string trim --left)
                       — all regressions
     Examine stderr    --verify-static/runtime exit 1 on non-target: always
                       inspect stderr output, do not categorize as
