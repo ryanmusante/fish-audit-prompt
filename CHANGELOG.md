@@ -2,6 +2,34 @@ fish-audit-prompt changelog
 
 2026-04-19  Ryan Musante
 
+- Tagged as v4.3.0
+- 370 checks (359 static + 11 runtime). Sync with ry-install v4.1.6.
+- add Phase 14 subsection 14.31 v4.1.6 SIGNAL-SAFE JSONL REDIRECTS (1 check, 380): all 6 JSONL append writers (`_write_footer` L316, `_json_str` L1356, `_log` L1408, `_msg` L1425, `_emit_step_time` L1577, top-level header L5922) share the `>>"$LOG_FILE" 2>/dev/null` pattern. Closes stderr-noise window under signal-triggered log rotation where `rm` races the TOCTOU between `_log`'s `test -f "$LOG_FILE"; or return 0` entry guard and the subsequent append. Primary check expects 6 hits of the paired pattern; regression sub-check expects 0 bare `>>"$LOG_FILE"$` remaining.
+- GROUP D data collection: +5 rg patterns for v4.1.6 deltas (V416 JSONL REDIRECT SITES, V416 JSONL REDIRECT COUNT, V416 BARE JSONL APPEND, V416 LOG GUARD TOCTOU, V416 JSONL WRITER FUNCTIONS).
+- counter baseline refresh (comprehensive source check): stale "v4.1.4 baseline" labels in checks 197 (`command` prefix), 198 (`--argument-names`), 199 + 204 + 213 (scope counters) did not match ry-install v4.1.5/v4.1.6 ground truth. Re-measured against v4.1.6 source and relabeled as "v4.1.6 baseline": `command` prefix ~173 (was ~162), `set -l` ~590 (was ~378), bare `set` ~192 (was ~144), in-function `set -g` ~130 (was ~113), `_run` wraps ~56 (was ~58; within drift), `--argument-names` 21 (unchanged). Drift-indicator framing preserved — these are trend signals, not pass gates.
+- PASS 3 SUMMARY TABLE: P14 170→171, TOTAL 369→370. Checklist sum-to target 358→359.
+- PASS 3 SPECIAL HANDLING: add 380 (bare `>>"$LOG_FILE"` regression, primary expects 6 hits / sub-check expects 0) to "Expect 0 hits" list.
+- check-range NOTE: P14 range #171-214,254-379 → #171-214,254-380; new line `Check 380 added in v4.3.0 audit prompt covering ry-install v4.1.6`.
+- header: 4.2.0→4.3.0, source v4.1.5→v4.1.6, 369→370.
+- update all v4.1.5 pins to v4.1.6: `Derived from` header, Phase 14 subtitle, GROUP D comment header, v3.47.0–v4.1.5 subgroup header, size-gate case label, data-file mapping comment, p14 missing-data warning, per-phase sum-to target, README Metrics/Phase/Files entries.
+- ry-install not modified — audit prompt references v4.1.6 source only.
+
+2026-04-19  Ryan Musante
+
+- Tagged as v4.2.0
+- 369 checks (358 static + 11 runtime). Sync with ry-install v4.1.5.
+- add Phase 14 subsection 14.30 v4.1.5 DIAGNOSTICS REFINEMENT (1 check, 379): `_validate_profile` destination guard split into duplicate-source check + key-collision check. Verifies both new `_err` messages (`"Profile destination duplicated: '$_d'"` and `"'$_d' and '$_owner' both map to tmpfile key '$_k'"`) and 0-hit regression on retired v4.1.4 message (`"Profile destination key collision"`).
+- rewrite check 369 to cross-reference check 379; regression pattern expanded from single legacy message to the two split diagnostics; legacy message added to "Expect 0 hits" list in PASS 3 SPECIAL HANDLING.
+- GROUP D data collection: +4 rg patterns for v4.1.5 deltas (PROFILE GUARD SPLIT, PROFILE DUP SOURCE, PROFILE KEY COLLISION, PROFILE KEY RETIRED MSG). V414 VALIDATE PROFILE COLLISION GUARD pattern expanded to include both new messages.
+- fix phase count header: `16 (11 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v4.1.4 + 1 supplemental + 1 profile system)` → `15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.5 specifics · P15 supplemental)`. Profile system is Phase 15 subsection 15.13, not a separate phase.
+- update all v4.1.4 pins to v4.1.5: `Derived from` header, Phase 14 subtitle, GROUP D comment header, `# ── v3.47.0–v4.1.5 additions ──`, `# ── v4.1.5 additions ──` subgroup, size-gate case label, data-file mapping comment, p14 missing-data warning.
+- PASS 3 SUMMARY TABLE: P14 169→170, TOTAL 368→369. Checklist sum-to target 357→358.
+- check-range NOTE: P14 range #171-214,254-378 → #171-214,254-379; new line `Check 379 added in v4.2.0 audit prompt covering ry-install v4.1.5`.
+- header: 4.1.0→4.2.0, source v4.1.4→v4.1.5, 368→369.
+- prose strip (user request): PURPOSE block collapsed to single `Scope` + `Policy` lines; SETUP STEP 1 "HOST:" lead-in folded into header; SETUP STEP 2 "Requires /bin/bash" prose folded into header; SETUP STEP 3 "EXTRACTION METHOD" paragraph trimmed; EXECUTION RULES / TOOL MANDATES / CONTEXT BUDGET / STALL PREVENTION lead-ins tightened; PASS 1 STEP 2 ANALYZE lead-in trimmed. Every check, command, regex, and code block preserved verbatim.
+
+2026-04-19  Ryan Musante
+
 - Tagged as v4.1.0
 - 368 checks (357 static + 11 runtime). Sync with ry-install v4.1.4.
 - add Phase 14 subsection 14.29 v4.1.4 PARITY + HARDENING (11 checks, 368–378): _tmpfile_key sha256 prefix retired, _validate_profile tmpfile-key collision guard, _ry_validate_configs merge loop simplified, _ry_verify_static hash-worker collector simplified, Job 2 empty svc_dsts guard, _kill_sudo_keepalive pkill descendant reap, _detect_lvm timeout 5→10, curl --connect-timeout on network + news-feed probes, _run stderr fish-native trim, boot-time LC_ALL=C parse.

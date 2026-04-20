@@ -1,28 +1,19 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 4.1.0
-Derived from: ry-install.fish v4.1.4 audit (2026-04-19)
-Checks: 368
-Phases: 16 (11 static + 1 runtime + 1 gap analysis + 1 v3.1.0–v4.1.4 + 1 supplemental + 1 profile system)
-
-───────────────────────────────────────────────────────────────
- PURPOSE
-───────────────────────────────────────────────────────────────
-
-368-check audit (357 static + 11 runtime) for production fish scripts managing system config,
-sudo, credentials, embedded configs, external profile loading, and argparse-dispatched
-modes with verification subsystems.
-
-ZERO-SKIP: Every source line analyzed. No sampling. Trace all code
-paths including error branches, unreachable code, early returns.
+Version: 4.3.0
+Derived from: ry-install.fish v4.1.6 (2026-04-19)
+Checks: 370 (359 static + 11 runtime)
+Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.6 specifics · P15 supplemental)
+Scope: production fish scripts with system config, sudo, credentials, embedded configs,
+       external profile loading, argparse-dispatched modes, verification subsystems.
+Policy: ZERO-SKIP. Every source line analyzed. Trace error branches, unreachable code,
+        early returns. No sampling.
 
 ───────────────────────────────────────────────────────────────
  SETUP
 ───────────────────────────────────────────────────────────────
 
-STEP 1: COPY + TOOLS
-
-  HOST: assumes Debian/Ubuntu (apt-get). Adapt for other distros.
+STEP 1: COPY + TOOLS (HOST: Debian/Ubuntu apt-get; adapt for other distros)
 
   ```bash
   mkdir -p /home/claude/audit-{src,data}
@@ -31,7 +22,7 @@ STEP 1: COPY + TOOLS
 
   apt-get update -q 2>/dev/null && \
     apt-get install -y fish fd-find bat 2>/dev/null; true
-  # Pin rg >= 14.1.1 (Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884); re-verify pinned version against current Ubuntu LTS rg ship before each release.
+  # Pin rg >= 14.1.1 (Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884); re-verify pin vs current Ubuntu LTS before each release.
   if ! rg --version 2>/dev/null | grep -qE '14\.1\.[1-9]|14\.[2-9]|1[5-9]\.|[2-9][0-9]\.'; then
     curl -sLO https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep_14.1.1-1_amd64.deb && \
       dpkg -i ripgrep_14.1.1-1_amd64.deb && rm -f ripgrep_14.1.1-1_amd64.deb
@@ -49,9 +40,7 @@ STEP 1: COPY + TOOLS
   '
   ```
 
-STEP 2: FALLBACKS (bash-only — do not fish-ify)
-
-  Requires /bin/bash (uses arrays, ${args[-1]}, ${range%%:*}).
+STEP 2: FALLBACKS (bash-only; uses arrays, ${args[-1]}, ${range%%:*} — do not fish-ify)
 
   ```bash
   command -v rg  >/dev/null 2>&1 || rg()  { grep -P --color=never "$@"; }
@@ -65,9 +54,9 @@ STEP 2: FALLBACKS (bash-only — do not fish-ify)
   command -v fd  >/dev/null 2>&1 || fd() { local pat="$1"; shift; find "$@" -name "$pat" 2>/dev/null; }
   export -f rg bat fd 2>/dev/null; true
 
-  # ── Hardening defaults (applied after STEP 2, before data collection) ──
-  export LC_ALL=C.UTF-8                    # Reproducible coreutils output (F-6)
-  export PYTHONUTF8=1                      # UTF-8 file I/O in Python 3.12 (F-7)
+  # Hardening defaults (post-STEP 2, pre-collection)
+  export LC_ALL=C.UTF-8                    # Reproducible coreutils (F-6)
+  export PYTHONUTF8=1                      # UTF-8 Python I/O (F-7)
   export RIPGREP_CONFIG_PATH=""            # Ignore inherited .ripgreprc (F-13)
   export PATH='/usr/local/bin:/usr/bin:/bin' # Sanitized PATH (F-15)
   unset CDPATH BASH_ENV ENV 2>/dev/null; true
@@ -76,22 +65,16 @@ STEP 2: FALLBACKS (bash-only — do not fish-ify)
 
 STEP 3: SAVE CHECKLIST TO DISK
 
-  Save the 357-check static analysis checklist (phases 1-11, 13-15;
-  phase 12's 11 runtime checks are inline in PASS 2) from the
-  CHECKLIST REFERENCE section (at end of this document) to
-  /home/claude/audit-data/checklist.txt.
+  Extract the 359-check static checklist (phases 1-11, 13-15; phase 12's 11
+  runtime checks live inline in PASS 2) from the CHECKLIST REFERENCE section
+  (end of this document) to /home/claude/audit-data/checklist.txt. Use `view`
+  to read from "CHECKLIST REFERENCE" header through end of Phase 15, then
+  write via create_file or bash heredoc. Verbatim only — no regeneration.
+  Verify: grep -c '^\s*\[ \]' checklist.txt → 359.
 
-  EXTRACTION METHOD: Use view tool to read this prompt file from the
-  "CHECKLIST REFERENCE" header through end of Phase 15, then write
-  that content to /home/claude/audit-data/checklist.txt via
-  create_file or bash heredoc. Copy verbatim — do not regenerate or
-  paraphrase. Verify: grep -c '^\s*\[ \]' checklist.txt → 357.
+  PASS 2 runtime count is inline in PASS 2 (grep target: 11). Total 359 + 11 = 370.
 
-  PASS 2 runtime count verification (inline in PASS 2 section):
-    grep -c '^\s*\[ \]' <(sed -n '/^  12\.1/,/^═/p' THIS_PROMPT) → 11.
-    Total: 357 + 11 = 368.
-
-  Read phases on demand during analysis:
+  Read phases on demand:
     bat --plain -r START:END /home/claude/audit-data/checklist.txt
 
 STEP 4: REFERENCE
@@ -118,66 +101,52 @@ RULES:
   Write findings: echo "F-N ..." >> /home/claude/audit-findings.txt
 
 EVIDENCE RULE:
-  For every finding, cite exact file:line or data excerpt that supports it.
-  If no supporting evidence exists in the collected data, mark as UNVERIFIED.
-  Never infer findings without data. Prefer 0 findings to 1 fabricated finding.
-  Findings lacking evidence will be rejected during PASS 3 collation.
+  Every finding cites file:line or data excerpt. No evidence → UNVERIFIED.
+  0 findings > 1 fabricated finding. PASS 3 rejects evidence-less findings.
 
 TOOL MANDATES:
-  RUST FIRST    rg over grep, fd over find, bat over cat/less.
-                Fall back only if unavailable.
+  RUST FIRST    rg > grep, fd > find, bat > cat/less. Fall back only if unavailable.
   PARALLEL      Every independent rg/fd call backgrounded with & + wait.
-                Group related checks into ( ... ) & subshells. No serial
-                rg loops.
-  BATCH         Compound commands in single tool calls. Multiple rg in
-                one subshell. One bash_tool call per pass, not per check.
+                Group related checks into ( ... ) & subshells. No serial rg loops.
+  BATCH         Compound commands in single tool calls. Multiple rg in one
+                subshell. One bash_tool call per pass, not per check.
   PYTHON3       Primary for function body extraction and line iteration.
-                NOTE: All Python extractors assume fish_indent-formatted input.
-                Single-line `begin; cmd; end` constructs cause incorrect depth
-                tracking. Ensure check 215 (fish_indent) passes before relying
-                on extractor output for depth-sensitive checks.
-                Define _py_extract helper (see STEP 1) for depth-tracking.
-                fish -c extractors fail on some fish versions due to $
-                escaping in regex. Use python3 for: function lengths,
-                function body extraction, scope shadow detection, tmpfile
-                lifecycle, comment coverage, numeric var init, in-function
-                globals, command prefix counts, bare coreutils detection.
-  PCRE2 GUARD   rg -oP/-cP requires PCRE2. If unavailable, fall back
-                to rg -o + grep -oP, or restructure the pattern.
-                rg -Un (multiline) needs rg ≥11; fall back to awk for
-                adjacent-line patterns if rg multiline unavailable.
-  OUTPUT CAPS   Every rg command producing multi-line output MUST pipe
-                through | head -N. Use: head -30 for high-hit patterns
-                (set, sudo, command), head -50 for medium, head -20 for
-                low-hit. Exceptions: rg -c (count-only) needs no cap.
+                All Python extractors assume fish_indent-formatted input; single-line
+                `begin; cmd; end` breaks depth tracking. Check 215 (fish_indent) must
+                pass before depth-sensitive checks. Define _py_extract (see STEP 1).
+                fish -c extractors fail on some fish versions due to $ escaping.
+                Use python3 for: function lengths, function body extraction,
+                scope shadow detection, tmpfile lifecycle, comment coverage,
+                numeric var init, in-function globals, command prefix counts,
+                bare coreutils detection.
+  PCRE2 GUARD   rg -oP/-cP requires PCRE2. Fall back to rg -o + grep -oP or
+                restructure. rg -Un (multiline) needs rg ≥11; fall back to awk
+                for adjacent-line patterns if unavailable.
+  OUTPUT CAPS   Every multi-line rg MUST pipe through | head -N. head -30 for
+                high-hit (set, sudo, command), -50 for medium, -20 for low.
+                Exception: rg -c (count-only).
 
 CONTEXT BUDGET:
-  Total context usage must not exceed 3000 lines across
-  ALL passes. Budget per pass:
-    PASS 1 (gather+analyze):  800 lines tool output max
-    PASS 2 (runtime):         600 lines tool output max
-    PASS 3 (finalize):        200 lines tool output max
-    Overhead (analysis+findings+reasoning): 1400 lines reserve
-    NOTE: Reasoning competes with this budget. If analysis
-    is complex, reduce data collection caps proportionally.
-    HIGH-FINDING RULE: If PASS 1 produces >20 findings,
-    summarize to disk and enter PASS 2 with reduced head caps
-    (20/30/10 instead of 30/50/20).
+  Total across ALL passes: 3000 lines max.
+    PASS 1 (gather+analyze):  800 lines tool output
+    PASS 2 (runtime):         600 lines tool output
+    PASS 3 (finalize):        200 lines tool output
+    Overhead (analysis+findings+reasoning): 1400 reserve
+  Reasoning competes with this budget — if analysis complex, reduce caps.
+  HIGH-FINDING RULE: PASS 1 > 20 findings → summarize to disk, enter PASS 2
+  with reduced caps (20/30/10 instead of 30/50/20).
 
   RULES:
-  - Raw data → disk only. Never paste >100 lines of rg output
-    into context.
-  - After each data collection step: wc -l all output files,
-    report line counts only.
+  - Raw data → disk only. Never paste >100 lines of rg into context.
+  - After each collection step: wc -l all outputs, report counts only.
   - Findings → /home/claude/audit-findings.txt (append).
   - Summary → context (counts + severity + check numbers only).
-  - If a single tool call returns >200 lines: truncate, note
-    "[truncated, full output in $D/filename.txt]".
+  - Single tool call >200 lines: truncate, note "[truncated, full output in $D/filename.txt]".
 
 STALL PREVENTION:
-  If approaching context limit (>30 tool calls or >30 messages):
-  1. Save current findings immediately
-  2. Skip remaining phases, mark as SKIPPED
+  Approaching limit (>30 tool calls or >30 messages):
+  1. Save findings immediately
+  2. Skip remaining phases, mark SKIPPED
   3. Jump to PASS 3 FINALIZE
   4. Produce partial spec with COVERAGE line
   5. Verdict: "incomplete — N/15 phases completed"
@@ -187,11 +156,11 @@ STALL PREVENTION:
     "Checkpoint: N findings [F-1:L42:C5, F-2:L108:C14, ...],
     phases [list] complete, [list] remaining.
     Carry-forward: VERSION=X, FUNC_COUNT=Y, SET_L_COUNT=Z."
-    Dedup: if a finding ID (file:line:check) already exists, skip.
+    Dedup: if finding ID (file:line:check) exists, skip.
 
 PASS ORDER:
-  PASS 1 — GATHER+ANALYZE  phases 1-11, 13-15  (collect → analyze on
-                            disk → write findings → report summary)
+  PASS 1 — GATHER+ANALYZE  phases 1-11, 13-15  (collect → analyze on disk →
+                            write findings → report summary)
   PASS 2 — RUNTIME         phase 12             (fish execution tests)
   PASS 3 — FINALIZE        —                    (summary + spec + zip)
 
@@ -350,7 +319,7 @@ for i, line in enumerate(lines, 1):
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v4.1.4 specifics ──
+  # ── GROUP D: P14 v3.1.0–v4.1.6 specifics ──
   ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -594,7 +563,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V3460 NOATIME DEDUP ===" && rg -n 'noatime.*already|already.*noatime|match.*noatime' "$F" | head -10
     echo "=== V3460 USBHID REMOVED ===" && rg -n 'usbhid' "$F" | head -5
     echo "=== V3460 COREDUMP VERIFY ===" && rg -n 'Storage=none|ProcessSizeMax|coredump.*verify|verify.*coredump' "$F" | head -10
-    # ── v3.47.0–v4.1.4 additions ──
+    # ── v3.47.0–v4.1.6 additions ──
     echo "=== V3480 LINT REMOVED ===" && rg -n '_ry_do_lint|do_lint\b|--lint\b' "$F" | rg -v '#|_err|_warn|_fail|deprecated|removed' | head -10
     echo "=== V410 TEST_ALL REMOVED ===" && rg -n '_ry_do_test_all|do_test_all\b|--test-all\b' "$F" | rg -v '#|removed|deprecated' | head -10
     echo "=== V410 COMPLETIONS REMOVED ===" && rg -n '_ry_do_completions|--completions\b' "$F" | rg -v '#|removed|deprecated' | head -10
@@ -651,7 +620,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V414 TMPFILE_KEY IMPL ===" && _py_extract "$F" "_tmpfile_key" | head -5
     echo "=== V414 TMPFILE_KEY SHA RETIRED ===" && _py_extract "$F" "_tmpfile_key" | rg 'sha256sum|string sub --length 8' | head -5
     echo "=== V414 TMPFILE_KEY SITES ===" && rg -c '_tmpfile_key' "$F"
-    echo "=== V414 VALIDATE PROFILE COLLISION GUARD ===" && rg -n 'Profile destination key collision|_seen_keys' "$F" | head -10
+    echo "=== V414 VALIDATE PROFILE COLLISION GUARD ===" && rg -n 'Profile destination key collision|Profile destination duplicated|both map to tmpfile key|_seen_keys' "$F" | head -10
     echo "=== V414 PHASE RCS REMOVED ===" && rg -n '_phase_rcs|_rc_config|_rc_units|_rc_env|_rc_sudoers|_rc_fish' "$F" | head -5
     echo "=== V414 HASH RCS REMOVED ===" && rg -n 'hash_rcs|_any_hash_worker_timeout' "$F" | head -5
     echo "=== V414 TIMEOUT SENTINEL REMOVED ===" && rg -n 'contains -- .*124 137 143|_phase_rc.*124' "$F" | head -5
@@ -663,6 +632,17 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V414 RUN STDERR FISH TRIM ===" && rg -n 'string trim --left' "$F" | head -10
     echo "=== V414 RUN STDERR SED RETIRED ===" && rg -n "command sed 's/\^ \*//'" "$F" | head -5
     echo "=== V414 BOOT_TIME LC_ALL ===" && rg -n 'LC_ALL=C printf "%.0f"' "$F" | head -5
+    # ── v4.1.5 additions ──
+    echo "=== V415 PROFILE GUARD SPLIT ===" && rg -n 'Profile destination duplicated|both map to tmpfile key' "$F" | head -10
+    echo "=== V415 PROFILE DUP SOURCE ===" && rg -n "Profile destination duplicated: '\\\$_d'" "$F" | head -5
+    echo "=== V415 PROFILE KEY COLLISION ===" && rg -n "both map to tmpfile key '\\\$_k'" "$F" | head -5
+    echo "=== V415 PROFILE KEY RETIRED MSG ===" && rg -n 'Profile destination key collision' "$F" | head -5
+    # ── v4.1.6 additions ──
+    echo "=== V416 JSONL REDIRECT SITES ===" && rg -n '>>"\$LOG_FILE" 2>/dev/null' "$F" | head -10
+    echo "=== V416 JSONL REDIRECT COUNT ===" && rg -c '>>"\$LOG_FILE" 2>/dev/null' "$F"
+    echo "=== V416 BARE JSONL APPEND ===" && rg -n '>>"\$LOG_FILE"$' "$F" | head -5
+    echo "=== V416 LOG GUARD TOCTOU ===" && rg -n 'test -f "\$LOG_FILE"; or return 0' "$F" | head -5
+    echo "=== V416 JSONL WRITER FUNCTIONS ===" && rg -n '^function _write_footer|^function _json_str|^function _log |^function _msg |^function _emit_step_time' "$F" | head -10
   ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
   # GROUP E: P13 gap analysis (race/error/edge tracing). Depends on GROUP D at analysis time (not collection time); 11 shared patterns (FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE, BOOT_SANITY, etc.) collected in GROUP D's p14.txt. GROUP E collects independent data to p13.txt; both files cross-referenced during STEP 2 ANALYZE.
@@ -727,7 +707,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
 
   # Post-wait data guard (D and E collect independently; E's P13 analysis reads p14.txt for 11 shared patterns).
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.1.4 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.1.6 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -746,7 +726,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14 (v3.1.0-v4.1.4 specifics)" ;;
+        p14)    phases="P14 (v3.1.0-v4.1.6 specifics)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -785,9 +765,8 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
 
 STEP 2: ANALYZE ON DISK
 
-  Read checklist from /home/claude/audit-data/checklist.txt (saved in
-  SETUP STEP 3). Read gathered data from $D/*.txt files on disk using
-  bat --plain. For each phase, compare gathered data against checklist.
+  Read checklist from /home/claude/audit-data/checklist.txt. Read $D/*.txt
+  via bat --plain. Compare gathered data against checklist per phase.
   Write findings to /home/claude/audit-findings.txt.
 
   DATA FILE → PHASE MAPPING:
@@ -799,24 +778,21 @@ STEP 2: ANALYZE ON DISK
     p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
                 FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
                 BOOT_SANITY shared patterns)
-    p14.txt   → Phase 14 (version specifics v3.1.0-v4.1.4)
-    Phase 15 deep checks use data from ALL files above (not just p14.txt).
+    p14.txt   → Phase 14 (version specifics v3.1.0-v4.1.6)
+    Phase 15 deep checks use data from ALL files above.
 
-  If p14.txt is missing or truncated, mark shared-pattern P13
-  checks (234-238) as DEFERRED. If p13.txt is missing, mark P13
-  as DEFERRED independently.
+  p14.txt missing or truncated → P13 shared-pattern checks (234-238) DEFERRED.
+  p13.txt missing → P13 DEFERRED independently.
 
-  SIZE GATE RECOVERY: If any data file was truncated, the automated
-  manifest at $D/<file>-lost.txt lists sections removed by truncation.
-  Re-collect those sections via targeted rg/python3 runs to
-  $D/<file>-recovery.txt. Do NOT claim PASS on checks whose data
-  was truncated without recovery.
+  SIZE GATE RECOVERY: truncated file → $D/<file>-lost.txt lists removed
+  sections. Re-collect via targeted rg/python3 to $D/<file>-recovery.txt.
+  Do NOT claim PASS on checks whose data was truncated without recovery.
 
   Report to context ONLY:
     "PASS 1 complete. N findings (N CRIT, N HIGH, N MED, N LOW, N INFO).
      Phases 1-11, 13-15 analyzed. Proceeding to PASS 2.
      Per-phase tally: P1:N P2:N P3:N P4:N P5:N P6:N P7:N P8:N P9:N
-     P10:N P11:N P13:N P14:N P15:N (must sum to 357)."
+     P10:N P11:N P13:N P14:N P15:N (must sum to 359)."
 
   Do NOT paste raw rg output into context.
 
@@ -1168,11 +1144,13 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-378,
+  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-380,
   P15 → #215-233, P12 → #239-249. Checks 168-170 retired in v4.0.0 audit
   prompt (rollback/backup/--dry-run features removed from ry-install v3.5.0–v4.1.0).
   Checks 334-367 added in v4.0.0 audit prompt covering ry-install v3.47.0–v4.1.3.
   Checks 368-378 added in v4.1.0 audit prompt covering ry-install v4.1.4.
+  Check 379 added in v4.2.0 audit prompt covering ry-install v4.1.5.
+  Check 380 added in v4.3.0 audit prompt covering ry-install v4.1.6.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
 
@@ -1191,7 +1169,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v4.1.4 Specifics (169 checks) ───────────
+─── Phase 14: v3.1.0–v4.1.6 Specifics (171 checks) ───────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1292,13 +1270,13 @@ STEP 2: ANALYZE ON DISK
                 to trivial one-liner helpers whose --description is
                 self-explanatory.
        [ ] 197. `command` prefix on ≥150 coreutils calls. No bare coreutils
-                outside sudo context (rg baseline ~162 for v4.1.4).
-       [ ] 198. --argument-names on ≥20 functions (v4.1.4 baseline 21).
+                outside sudo context (rg baseline ~173 for v4.1.6).
+       [ ] 198. --argument-names on ≥20 functions (v4.1.6 baseline 21).
 
   14.11 SCOPING + ROLLBACK (v3.2.9–v3.2.10)
-       [ ] 199. In-function set -g: ~115 (intentional VERIFY_*/flag globals;
-                v4.1.4 baseline 113). Cross-block bare set: ~145
-                (v4.1.4 baseline 144). Ratios drift ±10% release-to-release;
+       [ ] 199. In-function set -g: ~130 (intentional VERIFY_*/flag globals;
+                v4.1.6 baseline 130). Cross-block bare set: ~192
+                (v4.1.6 baseline 192). Ratios drift ±10% release-to-release;
                 absolute counts are trend indicators, not pass gates.
 
   14.12 LOGGING + VERIFICATION (v3.2.8–v3.2.10)
@@ -1323,9 +1301,9 @@ STEP 2: ANALYZE ON DISK
                Not stored as globals beyond pipeline.
        [ ] 204. Unconditional log rotation for all modes. Scope invariants:
                 set -l for true locals, bare set for cross-block updaters,
-                set -g only for intentional globals. v4.1.4 baselines:
-                ~378 set -l, ~144 bare set, ~113 in-function set -g.
-                _run wraps ≥50 commands for logging (v4.1.4 baseline ~58).
+                set -g only for intentional globals. v4.1.6 baselines:
+                ~590 set -l, ~192 bare set, ~130 in-function set -g.
+                _run wraps ≥50 commands for logging (v4.1.6 baseline ~56).
                 These are drift indicators (±15% normal between releases),
                 not pass gates — sudden large deltas warrant investigation.
 
@@ -1368,9 +1346,9 @@ STEP 2: ANALYZE ON DISK
                 examples from v3.3.x audit era retired with those modes
                 (v3.48.20 + v4.1.0); _install_collect_wifi inlined into
                 preflight path.
-       [ ] 213. v4.1.4 scope baselines: in-function set -g ~113
-                (intentional VERIFY_*/flag globals). Bare set ~144
-                (cross-block updaters). set -l ~378 (true locals).
+       [ ] 213. v4.1.6 scope baselines: in-function set -g ~130
+                (intentional VERIFY_*/flag globals). Bare set ~192
+                (cross-block updaters). set -l ~590 (true locals).
                 Ratios matter more than absolute counts (see check 204).
                 Regression signal: set -g count rising sharply without
                 new global introductions in changelog.
@@ -1858,14 +1836,17 @@ STEP 2: ANALYZE ON DISK
                 (5 _ry_validate_configs jobs + _ry_verify_static hash
                 worker + _ry_do_check Jobs 1-2). Regression: rg in
                 _tmpfile_key body 'sha256sum|string sub --length 8' → 0 hits.
-       [ ] 369. _validate_profile tmpfile-key collision guard (v4.1.4):
+       [ ] 369. _validate_profile tmpfile-key collision guard (v4.1.4,
+                refined v4.1.5 — see check 379):
                 iterates SYSTEM_DESTINATIONS + USER_DESTINATIONS +
                 SERVICE_DESTINATIONS, computes slash→underscore key for
                 each, rejects first duplicate with _err + return 1.
                 Replaces the in-helper sha256 collision defense from
                 v4.1.3 (now retired — see check 368).
-                rg 'Profile destination key collision' → 1 hit.
+                rg 'Profile destination duplicated|both map to tmpfile key' → ≥1 hit.
                 rg '_seen_keys' in _validate_profile body → ≥2 hits.
+                Legacy v4.1.4 message 'Profile destination key collision'
+                replaced by split diagnostics in v4.1.5 → 0 hits.
        [ ] 370. _ry_validate_configs merge loop simplified (v4.1.4):
                 removed 5 × `_rc_<phase>` captures, `_phase_rcs` map, and
                 the timeout-vs-crash branch. Fish's `wait` returns 0
@@ -1918,6 +1899,44 @@ STEP 2: ANALYZE ON DISK
                 Non-C LC_NUMERIC (e.g., de_DE.UTF-8 uses `,` as decimal
                 separator) would return 0, masking real boot-time regressions.
                 rg 'LC_ALL=C printf "%.0f"' → ≥1 hit in _ry_verify_runtime.
+
+  14.30 v4.1.5 DIAGNOSTICS REFINEMENT (1 check)
+       [ ] 379. _validate_profile destination guard split (v4.1.5): the
+                single v4.1.4 collision guard is now two distinct
+                diagnostics. Literal duplicate source paths emit
+                "Profile destination duplicated: '$_d'"; slash→underscore
+                key collisions between distinct paths emit "'$_d' and
+                '$_owner' both map to tmpfile key '$_k'". Guards live in
+                _validate_profile body (ry-install v4.1.5 L917-935).
+                Prior single-branch guard misreported duplicate sources
+                as key collisions, masking profile authoring errors.
+                Regression checks:
+                  rg "Profile destination duplicated: '\\\$_d'" → 1 hit.
+                  rg "both map to tmpfile key '\\\$_k'" → 1 hit.
+                  rg 'Profile destination key collision' → 0 hits (legacy msg).
+                  rg '_seen_keys' in _validate_profile body → ≥2 hits (retained).
+
+  14.31 v4.1.6 SIGNAL-SAFE JSONL REDIRECTS (1 check)
+       [ ] 380. JSONL append redirects signal-safe across all 6 writers
+                (v4.1.6): every `>>"$LOG_FILE"` append paired with
+                `2>/dev/null`, matching the _write_footer convention
+                established at L316. Closes stderr-noise window under
+                signal-triggered log rotation where `rm` races the
+                existence-test inside _log (TOCTOU between
+                `test -f "$LOG_FILE"; or return 0` and the append).
+                The 6 sites (ry-install v4.1.6 lines):
+                  L316  _write_footer       — footer event (pre-existing)
+                  L1356 _json_str bug path  — bug event (added v4.1.6)
+                  L1408 _log main writer    — message/section events (added v4.1.6)
+                  L1425 _msg invalid-level  — bug event (added v4.1.6)
+                  L1577 _emit_step_time     — step_time event (added v4.1.6)
+                  L5922 top-level header    — header event (added v4.1.6)
+                Regression checks:
+                  rg '>>"\$LOG_FILE" 2>/dev/null' → 6 hits (all writers covered).
+                  rg '>>"\$LOG_FILE"$' → 0 hits (no bare append remains).
+                  rg 'test -f "\$LOG_FILE"; or return 0' → ≥1 hit (the
+                    _log entry guard whose TOCTOU window is closed by
+                    the new redirect parity).
 
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
@@ -2217,9 +2236,9 @@ STEP 2: SUMMARY TABLE
    11     | 1    | 11     |      |      |
    12     | 2    | 11     |      |      |
    13     | 1    | 5      |      |      |
-   14     | 1    | 169    |      |      |
+   14     | 1    | 171    |      |      |
    15     | 1    | 19     |      |      |
-  TOTAL  |      | 368    |      |      |
+  TOTAL  |      | 370    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
@@ -2242,7 +2261,13 @@ STEP 2: SUMMARY TABLE
                       370 (_phase_rcs + _rc_<phase> removed v4.1.4),
                       371 (hash_rcs + _any_hash_worker_timeout removed v4.1.4;
                            124/137/143 sentinels phantom),
-                      377 (command sed 's/^ *//' replaced by string trim --left)
+                      377 (command sed 's/^ *//' replaced by string trim --left),
+                      379 ('Profile destination key collision' legacy msg
+                           retired v4.1.5, now split into dup-source + key-collision),
+                      380 (bare `>>"$LOG_FILE"` without `2>/dev/null` — all 6
+                           JSONL writers signal-safe as of v4.1.6; primary check
+                           expects 6 hits of the paired pattern, regression
+                           sub-check expects 0 bare appends)
                       — all regressions
     Examine stderr    --verify-static/runtime exit 1 on non-target: always
                       inspect stderr output, do not categorize as
