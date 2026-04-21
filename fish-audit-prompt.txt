@@ -1,6 +1,6 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 4.4.0
+Version: 4.4.1
 Derived from: ry-install.fish v4.1.8 (2026-04-20)
 Checks: 374 (363 static + 11 runtime)
 Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.8 specifics · P15 supplemental)
@@ -603,7 +603,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V415 PROFILE GUARD SPLIT ===" && rg -n 'Profile destination duplicated|both map to tmpfile key' "$F" | head -10
     echo "=== V415 PROFILE DUP SOURCE ===" && rg -n "Profile destination duplicated: '\\\$_d'" "$F" | head -5
     echo "=== V415 PROFILE KEY COLLISION ===" && rg -n "both map to tmpfile key '\\\$_k'" "$F" | head -5
-    echo "=== V415 PROFILE KEY RETIRED MSG ===" && rg -n 'Profile destination key collision' "$F" | head -5
+    echo "=== V415 PROFILE KEY COLLISION LABEL (retained as prefix; expect 1) ===" && rg -n 'Profile destination key collision' "$F" | head -5
     # ── v4.1.6 additions ──
     echo "=== V416 JSONL REDIRECT SITES ===" && rg -n '>>"\$LOG_FILE" 2>/dev/null' "$F" | head -10
     echo "=== V416 JSONL REDIRECT COUNT ===" && rg -c '>>"\$LOG_FILE" 2>/dev/null' "$F"
@@ -1191,8 +1191,11 @@ STEP 2: ANALYZE ON DISK
                full order validation for embedded content only.
 
   14.5 SYSCTL.D INTEGRATION (v3.2.0)
-       [ ] 180. 99-ry-sysctl.conf in SYSTEM_DESTINATIONS (12th).
-               MANAGED_FILE_COUNT=15. _ry_get_file_content case matches.
+       [ ] 180. 99-cachyos-sysctl.conf in SYSTEM_DESTINATIONS (11th entry;
+               12th is 99-nvme-rqaffinity.rules added v3.51.x).
+               _RY_MANAGED_FILE_COUNT=16 (SYSTEM 12 + USER 3 + SERVICE 1;
+               see Phase 6 header and check 104). _ry_get_file_content
+               case matches.
        [ ] 181. _ry_verify_static: 4 _chk_grep checks. _ry_verify_runtime:
                reads /proc/sys/ for all 4 keys with cat -- 2>/dev/null.
        [ ] 182. _install_configure: sysctl --system reload gated by file
@@ -1823,8 +1826,10 @@ STEP 2: ANALYZE ON DISK
                 v4.1.3 (now retired — see check 368).
                 rg 'Profile destination duplicated|both map to tmpfile key' → ≥1 hit.
                 rg '_seen_keys' in _validate_profile body → ≥2 hits.
-                Legacy v4.1.4 message 'Profile destination key collision'
-                replaced by split diagnostics in v4.1.5 → 0 hits.
+                NOTE: "Profile destination key collision" label retained
+                in v4.1.5 as the prefix of the narrower key-collision
+                branch (1 hit expected). Only semantic scope changed;
+                string presence is NOT a legacy-msg regression.
        [ ] 370. _ry_validate_configs merge loop simplified (v4.1.4):
                 removed 5 × `_rc_<phase>` captures, `_phase_rcs` map, and
                 the timeout-vs-crash branch. Fish's `wait` returns 0
@@ -1882,16 +1887,24 @@ STEP 2: ANALYZE ON DISK
        [ ] 379. _validate_profile destination guard split (v4.1.5): the
                 single v4.1.4 collision guard is now two distinct
                 diagnostics. Literal duplicate source paths emit
-                "Profile destination duplicated: '$_d'"; slash→underscore
-                key collisions between distinct paths emit "'$_d' and
-                '$_owner' both map to tmpfile key '$_k'". Guards live in
+                "Profile destination duplicated: '$_d' appears more than
+                once in SYSTEM/USER/SERVICE destinations"; slash→underscore
+                key collisions between distinct paths emit "Profile
+                destination key collision: '$_d' and
+                '$_seen_owners[$_idx]' both map to tmpfile key '$_k'".
+                The "Profile destination key collision:" label is retained
+                from v4.1.4 as the prefix of the narrower key-collision
+                branch — only its semantic scope changed. Guards live in
                 _validate_profile body (ry-install v4.1.5 L917-935).
                 Prior single-branch guard misreported duplicate sources
                 as key collisions, masking profile authoring errors.
                 Regression checks:
                   rg "Profile destination duplicated: '\\\$_d'" → 1 hit.
                   rg "both map to tmpfile key '\\\$_k'" → 1 hit.
-                  rg 'Profile destination key collision' → 0 hits (legacy msg).
+                  rg 'Profile destination key collision:' → 1 hit
+                    (NOTE: label retained as key-collision branch prefix;
+                    v4.1.4 form also caught dup-source — do NOT treat
+                    presence as legacy-msg regression).
                   rg '_seen_keys' in _validate_profile body → ≥2 hits (retained).
 
   14.31 v4.1.6 SIGNAL-SAFE JSONL REDIRECTS (1 check)
@@ -1970,11 +1983,12 @@ STEP 2: ANALYZE ON DISK
                 NM connection enumeration (L4456 in `_ry_verify_runtime`,
                 not `_install_post_package_refresh` — the v4.1.8
                 CHANGELOG mislabels the function name; the line number
-                and pattern are correct). Log rotation in
-                `_acquire_lock` (L5951) uses the equivalent but
-                syntactically distinct `-printf '...%p\0'` form —
-                same null-safety outcome, excluded from the `-print0`
-                regex below by design.
+                and pattern are correct). Log rotation in the top-level
+                script body (L5951 in v4.1.8, post-function declarations
+                — NOT inside `_acquire_lock`, which spans L377-452) uses
+                the equivalent but syntactically distinct `-printf
+                '...%p\0'` form — same null-safety outcome, excluded
+                from the `-print0` regex below by design.
                 Regression checks:
                   rg "find .* -name 'vmlinuz-\*' -type f -print0" → 1 hit.
                   rg "find .* -name 'initramfs-\*\.img' -type f -print0" → 1 hit.
@@ -2090,6 +2104,37 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     echo "PASS 2 pre-flight: OK (fish $FISH_VER)"
   fi
 
+  # ── Privilege handling ──
+  # ry-install rejects root at entry with exit 2 (EXIT_USAGE) via
+  # `if test (id -u) -eq 0 … _ry_exit $EXIT_USAGE; …` at ry-install L66-68.
+  # When the audit runs as root, every PASS 2 test would false-fail unless we
+  # drop privileges. Auto-detect; respect PASS2_FISH_USER env override; skip
+  # PASS 2 cleanly if neither runuser(1) nor a usable target user is present.
+  # Also: system users (nobody, daemon) default to $HOME=/nonexistent, which
+  # breaks fish config save AND ry-install log-directory creation → we create
+  # a world-writable tmpdir and force it into the child env via `env HOME=`.
+  FISH_PREFIX=""
+  if [ "$(id -u)" -eq 0 ]; then
+    PASS2_USER="${PASS2_FISH_USER:-nobody}"
+    if ! command -v runuser >/dev/null 2>&1; then
+      echo "[CRITICAL] audit running as root and runuser(1) unavailable — ry-install exits 2 (EXIT_USAGE) for (id -u)==0 at L66-68; every PASS 2 test would false-fail. Re-run audit as non-root. PASS 2 SKIPPED." >> "$O"
+      exit 0
+    fi
+    if ! id -u "$PASS2_USER" >/dev/null 2>&1; then
+      echo "[CRITICAL] audit running as root and PASS2_FISH_USER='$PASS2_USER' does not exist — set PASS2_FISH_USER env to a valid non-root user, or re-run audit as non-root. PASS 2 SKIPPED." >> "$O"
+      exit 0
+    fi
+    if ! runuser -u "$PASS2_USER" -- test -r "$S" 2>/dev/null; then
+      echo "[CRITICAL] audit running as root and user '$PASS2_USER' cannot read $S — adjust script permissions or set PASS2_FISH_USER to a user with read access, or re-run audit as non-root. PASS 2 SKIPPED." >> "$O"
+      exit 0
+    fi
+    PASS2_HOME=$(mktemp -d "${TMPDIR:-/tmp}/pass2-fish-home-XXXXXX")
+    chmod 0777 "$PASS2_HOME"
+    trap '[ -n "$PASS2_HOME" ] && rm -rf -- "$PASS2_HOME" 2>/dev/null' EXIT
+    FISH_PREFIX="runuser -u $PASS2_USER -- env HOME=$PASS2_HOME"
+    echo "PASS 2: root detected — wrapping fish invocations via '$FISH_PREFIX'"
+  fi
+
   # NON-TARGET HARDWARE — expected non-zero in audit container (don't flag):
   #   --verify-runtime/--verify-static → 1 (no managed files)
   #   --check → 3 (preflight) or 10 (drift); no-args install → non-zero (no sudo/root UUID)
@@ -2102,17 +2147,17 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   RUNTIME_TIMEOUT=30
 
   # Group A: stdout/stderr separation (--help, --version and short forms)
-  timeout "$RUNTIME_TIMEOUT" fish "$S" --help    >"$D/help-out.txt"  2>"$D/help-err.txt"  &
-  timeout "$RUNTIME_TIMEOUT" fish "$S" -h        >"$D/h-out.txt"     2>"$D/h-err.txt"     &
-  timeout "$RUNTIME_TIMEOUT" fish "$S" --version >"$D/ver-out.txt"   2>"$D/ver-err.txt"   &
-  timeout "$RUNTIME_TIMEOUT" fish "$S" -v        >"$D/v-out.txt"     2>"$D/v-err.txt"     &
+  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --help    >"$D/help-out.txt"  2>"$D/help-err.txt"  &
+  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" -h        >"$D/h-out.txt"     2>"$D/h-err.txt"     &
+  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --version >"$D/ver-out.txt"   2>"$D/ver-err.txt"   &
+  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" -v        >"$D/v-out.txt"     2>"$D/v-err.txt"     &
   wait
 
   # Group B: exit code matrix (surviving modes + deprecated-flag rejection)
   (
     # B1: help/version/bogus
     for mode in "--help" "-h" "--version" "-v" "--bogus" "--verbose"; do
-      timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
+      timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b1.txt" &
   (
@@ -2120,14 +2165,14 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     for mode in "--verify-static" "--verify-runtime" "--check" \
                 "--install-file" "--install-file relative/path" \
                 "--install-file /etc/kernel/cmdline"; do
-      timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
+      timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b2.txt" &
   (
     # B3: deprecated flags — must all return EXIT_USAGE (2)
     for mode in "--all" "-a" "--dry-run" "-n" "--diff" "--fix" "--force" "-f" \
                 "--lint" "--test-all" "--completions" "--logs"; do
-      timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
+      timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b3.txt" &
   (
@@ -2136,24 +2181,31 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
                 "--verify-static --check" \
                 "--check --install-file /etc/kernel/cmdline" \
                 "--verify-runtime --install-file /etc/kernel/cmdline"; do
-      timeout "$RUNTIME_TIMEOUT" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
+      timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b4.txt" &
   wait
   cat "$D"/exit-b{1,2,3,4}.txt > "$D/exit-codes.txt"
 
   # Group B2: stdout leak check for operational modes
-  timeout "$RUNTIME_TIMEOUT" fish "$S" --verify-static  >"$D/vs-out.txt"    2>/dev/null &
-  timeout "$RUNTIME_TIMEOUT" fish "$S" --verify-runtime >"$D/vr-out.txt"    2>/dev/null &
-  timeout "$RUNTIME_TIMEOUT" fish "$S" --check          >"$D/check-out.txt" 2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --verify-static  >"$D/vs-out.txt"    2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --verify-runtime >"$D/vr-out.txt"    2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --check          >"$D/check-out.txt" 2>/dev/null &
   wait
 
   # Group C: SIGPIPE + redirect bug
+  #   SIGPIPE test: --help | head -n 1. PIPESTATUS[0] is 141 IFF help output
+  #   exceeds pipe buffer (~64 KB Linux default) so fish writes after head
+  #   closes; for small help (~1.6 KB in ry-install v4.1.8), PIPESTATUS=0 is
+  #   normal — fish flushes everything before head closes. Either outcome is
+  #   acceptable at runtime; _cleanup_pipe presence is verified statically
+  #   (checks 189 + 321). FP="$4" is the word-split FISH_PREFIX (empty or
+  #   runuser-wrapper) passed into the single-quoted subshell.
   /bin/bash -c '
-    D="$1"; S="$2"; T="$3"
-    timeout "$T" fish "$S" --help 2>&1 | head -n 1 >/dev/null 2>&1
-    printf -- "--help|head -n 1 → %d\n" "${PIPESTATUS[0]}" > "$D/exit-c-sigpipe.txt"
-  ' _ "$D" "$S" "$RUNTIME_TIMEOUT" &
+    D="$1"; S="$2"; T="$3"; FP="$4"
+    timeout "$T" $FP fish "$S" --help 2>&1 | head -n 1 >/dev/null 2>&1
+    printf -- "--help|head -n 1 → %d (0=buffer-fit, 141=SIGPIPE fired; both acceptable)\n" "${PIPESTATUS[0]}" > "$D/exit-c-sigpipe.txt"
+  ' _ "$D" "$S" "$RUNTIME_TIMEOUT" "$FISH_PREFIX" &
   (
     fish -c '
       set result (string trim -- (cat -- /nonexistent/path 2>/dev/null))
@@ -2169,7 +2221,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   # Group D: NO_COLOR enforcement on read-only modes (write modes need sudo+profile)
   for mode in "--verify-static" "--verify-runtime" "--check" "--help"; do
     safename=$(echo "$mode" | tr ' ' '-')
-    NO_COLOR=1 timeout "$RUNTIME_TIMEOUT" fish "$S" $mode 2>"$D/nocolor-$safename.txt" >/dev/null &
+    timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX env NO_COLOR=1 fish "$S" $mode 2>"$D/nocolor-$safename.txt" >/dev/null &
   done
   wait
   ```
@@ -2238,9 +2290,15 @@ STEP 3: CHECKLIST
                 (check 143 runtime test).
 
   12.6 SIGPIPE + SIGNAL EXITS
-       [ ] 249. Help | head -n 1 returns 141 (SIGPIPE) — _cleanup_pipe fires
-                with no stderr leak. Help text documents 129/130/131/143
-                (HUP/INT/QUIT/TERM via _cleanup handler case-branches).
+       [ ] 249. Help | head -n 1 returns {0, 141}: 141 if help output
+                exceeds pipe buffer and fish writes after head closes;
+                0 if help fits entirely in pipe buffer (typical —
+                ry-install v4.1.8 help is ~1.6 KB, well below 64 KB
+                Linux default). Either is acceptable at runtime; strict
+                _cleanup_pipe presence + SIGPIPE handler registration
+                are verified statically by checks 189 + 321. Help text
+                documents 129/130/131/141/143 (HUP/INT/QUIT/PIPE/TERM
+                via _cleanup + _cleanup_pipe handler case-branches).
 
 
 ═══════════════════════════════════════════════════════════════
@@ -2299,7 +2357,8 @@ STEP 2: SUMMARY TABLE
                    370 (_phase_rcs/_rc_<phase> removed v4.1.4),
                    371 (hash_rcs + _any_hash_worker_timeout removed v4.1.4; 124/137/143 sentinels phantom),
                    377 (command sed 's/^ *//' → string trim --left),
-                   379 ('Profile destination key collision' retired v4.1.5; split into dup-source + key-collision),
+                   379 (dup-source split out v4.1.5; 'Profile destination key collision' label retained
+                        as key-collision branch prefix — 1 hit expected, NOT a legacy-msg regression),
                    380 (bare `>>"$LOG_FILE"` regression — all 6 JSONL writers signal-safe v4.1.6;
                         primary expects 6 paired hits, sub-check 0)
     Examine stderr --verify-static/runtime exit 1 on non-target: read actual stderr before
