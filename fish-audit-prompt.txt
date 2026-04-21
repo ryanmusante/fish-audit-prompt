@@ -1,6 +1,6 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 4.4.1
+Version: 4.4.4
 Derived from: ry-install.fish v4.1.8 (2026-04-20)
 Checks: 374 (363 static + 11 runtime)
 Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.8 specifics · P15 supplemental)
@@ -417,7 +417,7 @@ print(f'{count} in-function set -g')
     echo "=== V3723 FISH-C SAFE ===" && rg -nc "fish -c '" "$F"
     echo "=== V3723 BRACE EXPANSION ===" && rg -n '{\$' "$F" | head -10
     echo "=== V3723 ECHO STATUS ===" && rg -n 'echo \$status' "$F" | rg -v '#' | head -10
-    echo "=== V3723 TEST DEPRECATED ===" && rg -n 'test .* -o |test .* -a ' "$F" | head -10
+    echo "=== V3723 TEST DEPRECATED ===" && rg -n 'test [^;]+ -[oa] [^;]+' "$F" | head -10
     echo "=== V3723 WAIT GUARD ===" && rg -n 'wait \$' "$F" | head -20
     echo "=== V3723 WAIT COUNT GUARD ===" && rg -n 'count.*pids.*wait|test.*count.*wait' "$F" | head -10
     echo "=== V3723 WORKER CAP ===" && rg -n 'nproc|num_workers|min.*nproc' "$F" | head -20
@@ -563,7 +563,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V400 RESOLVED MDNS ===" && rg -n 'RESOLVED_MDNS|MulticastDNS' "$F" | head -10
     echo "=== V401 FSTAB SUDO CHMOD ===" && rg -n '\-\-reference=/etc/fstab|sudo chmod.*reference' "$F" | head -5
     echo "=== V401 LOG UMASK 0077 ===" && rg -n 'umask 0077|chmod 700' "$F" | head -10
-    echo "=== V403 HASH PIPESTATUS ===" && rg -n '_ps\[1\]=0.*_ps\[2\]=0|pipestatus\[2\]' "$F" | head -10
+    echo "=== V403 HASH PIPESTATUS ===" && rg -n 'test \$_ps\[1\] -eq 0; and test \$_ps\[2\] -eq 0|test \$_ps\[1\] -ne 0; or test \$_ps\[2\] -ne 0' "$F" | head -10
     echo "=== V403 CONTENT_HASH ===" && rg -n '_content_hash' "$F" | head -10
     echo "=== V410 DISPATCHER ARGPARSE ===" && rg -nA2 'argparse --name=ry-install' "$F" | head -15
     echo "=== V410 ARGPARSE EXCLUSIVE ===" && rg -n '\-\-exclusive=' "$F" | head -5
@@ -934,7 +934,10 @@ STEP 2: ANALYZE ON DISK
 
   6.4  MKINITCPIO
        [ ] 78. MODULES=() HOOKS=() COMPRESSION="" format correct
-       [ ] 79. Hook order: base→systemd→keyboard→sd-vconsole→filesystems→fsck
+       [ ] 79. Hook order (11 hooks, v4.1.8 baseline):
+               base → systemd → autodetect → microcode → modconf → kms →
+               keyboard → sd-vconsole → block → filesystems → fsck.
+               No `resume` hook — sleep/hibernate targets masked.
        [ ] 80. Modules validated via modprobe -n
 
   6.5  MODPROBE
@@ -1012,9 +1015,18 @@ STEP 2: ANALYZE ON DISK
   7.4  README ↔ HELP
        [ ] 110. All --help options in README
        [ ] 111. Sub-options + modifiers documented as separate entries
-       [ ] 112. --install-file path requirement documented; deprecated-flag
-                rejection messages documented in README "Deprecated flags —
-                DO NOT re-introduce" section (README v4.1.3).
+       [ ] 112. --install-file path requirement documented in README. CLI
+                deprecated-flag rejection messages live ONLY in the script's
+                _early_usage_exit handler (per-flag specific messages); the
+                README's "Deprecated flags — DO NOT re-introduce" section
+                (line 246) is scoped to deprecated ENVIRONMENT VARIABLES
+                (DXVK_ASYNC, DXVK_FRAME_RATE, WINE_FULLSCREEN_FSR — VKD3D_FRAME_RATE
+                retained), NOT CLI flags. Verify each deprecated CLI flag
+                (--all, --dry-run, --diff, --fix, --lint, --test-all,
+                --completions, --logs) has a specific _early_usage_exit
+                message in the script. Regression: must NOT add a CLI-flag
+                section to README under the same header — would alias the
+                env-var section.
        [ ] 113. Exit codes (0,1,2,3,4,5,10,129,130,131,141,143) in both
                 --help and README. Code 11 (EXIT_LINT) retired v3.48.20 —
                 regression: must NOT appear in either.
@@ -1441,10 +1453,13 @@ STEP 2: ANALYZE ON DISK
                set INSTALL_HAD_ERRORS, and warn. Regression: 0 code paths
                where < 6.14 gate silently passes.
        [ ] 280. PROGRESS_STEPS ordering matches execution order in _ry_do_install
-               pipeline. After syu reorder (syu before mkinitcpio), entries
-               15-17 updated: "System upgrade" → "Rebuilding initramfs" →
-               "Updating bootloader". rg count: 20 PROGRESS_STEPS = 20
-               _progress calls.
+               pipeline. 6-phase model (v4.0.0+): Preflight → Packages →
+               Configuration → Services → Boot → Finalize. `_progress` called
+               once per phase. syu-before-mkinitcpio ordering (v3.7.13)
+               preserved inside the Boot phase via _install_rebuild_boot
+               (see check 287). rg count: 6 PROGRESS_STEPS entries =
+               6 `_progress <phase>` calls (plus 1 `_progress Finalize skip`
+               fast-path variant when Finalize has no work).
        [ ] 281. B-5 _ry_do_test_all nested parallelism guard: on systems with
                < 8 cores (nproc), all 14 read-only modes run sequentially
                instead of parallel forking. 8-15 cores: batch throttle in
@@ -1505,9 +1520,13 @@ STEP 2: ANALYZE ON DISK
                and before chmod/mv in both sudo and user paths (4 total
                check sites). Closes TOCTOU between pre-write guard and
                write. Regression from _ry_install_file refactor.
-       [ ] 296. Deprecated test operators: 0 test -o / test -a usage
-               (rg 'test .* -o |test .* -a ' → 0). Fish idiomatic
-               "; or" / "; and" used instead. Regression from v3.7.21.
+       [ ] 296. Deprecated test operators: 0 `test EXPR -a EXPR` /
+               `test EXPR -o EXPR` usage (rg 'test [^;]+ -[oa] [^;]+' → 0
+               — tightened regex; the previous `test .* -o |test .* -a `
+               form produced false positives on `test ...; and set -a` /
+               `; or set -a` lines where the trailing `-a` belongs to
+               `set --append`, not `test`). Fish idiomatic "; or" /
+               "; and" used instead. Regression from v3.7.21.
 
        [ ] 297. _find_pacnew_files uses sudo -n (non-interactive): no
                credential prompts in dry-run or read-only contexts.
@@ -1551,9 +1570,13 @@ STEP 2: ANALYZE ON DISK
                99-cachyos-sysctl.conf content in _ry_get_file_content.
                Runtime verify reads /proc/sys/ for each. Whitespace
                normalization for multi-value keys (tcp_rmem, tcp_wmem).
-       [ ] 307. irqbalance.service in MASK: conflicts with threadirqs
-               kernel param. Both present → consistent (cache thrashing
-               prevention on 32-thread systems).
+       [ ] 307. irqbalance.service RETIRED from MASK (v4.0.0): originally
+               added to MASK in v3.10.0-era to prevent cache-thrashing with
+               threadirqs, removed v4.0.0 after upstream kernel irq affinity
+               improvements made masking unnecessary on the target platform.
+               threadirqs kernel param retained. Retained as regression
+               detector only — see check 348 for the authoritative 0-hit
+               assertion (rg 'irqbalance' in MASK context → 0).
        [ ] 308. amdgpu-performance.service removal (v3.38.0): 0 references
                in SERVICE_DESTINATIONS, EXPECTED_SERVICES,
                _ry_get_file_content, _ry_verify_static, _ry_verify_runtime.
@@ -1607,19 +1630,25 @@ STEP 2: ANALYZE ON DISK
        [ ] 324. All SYSTEM_DESTINATIONS and case patterns quoted (v3.37.2):
                16 destinations + case branches consistently quoted.
                coredump.conf.d/sysctl.d destinations present (v3.32.0+).
-       [ ] 325. preempt=full kernel param added (v3.45.0): KERNEL_PARAMS
-               14→15. Present in KERNEL_PARAMS array, cmdline content
-               via _ry_get_file_content, and comment block. Runtime
-               verify checks dmesg 'Dynamic Preempt: full'.
+       [ ] 325. preempt=full runtime-only verification (v3.45.0 added to
+               KERNEL_PARAMS; retired from the array by v4.0.x when the
+               script narrowed its target to linux-cachyos, which defaults
+               to full preempt). Runtime verify greps 'Dynamic Preempt: full'
+               in dmesg; if absent, _warn advises adding preempt=full to
+               cmdline for non-cachyos kernels. NOT in KERNEL_PARAMS array.
+               rg '^\s+preempt=full' in KERNEL_PARAMS block → 0.
+               rg 'Dynamic Preempt' → ≥1 hit (runtime warn helper).
        [ ] 326. vm.page_lock_unfairness=1 removal (v3.45.0): 0 references
                in SYSCTL_VALUES, _ry_get_file_content sysctl section,
                and /proc/sys/ runtime checks. Kernel default is optimal.
        [ ] 327. netdev_max_backlog value 300000→16384 (v3.45.0): verify
                SYSCTL_VALUES entry matches _ry_get_file_content output.
                Runtime verify reads /proc/sys/net/core/netdev_max_backlog.
-       [ ] 328. somaxconn=8192 addition (v3.45.0): verify in SYSCTL_VALUES
-               and sysctl content generator. Runtime verify reads
-               /proc/sys/net/core/somaxconn.
+       [ ] 328. somaxconn=8192 RETIRED from SYSCTL_VALUES (v4.0.0): originally
+               added v3.45.0, removed v4.0.0 alongside unprivileged_bpf_disabled,
+               inotify.max_user_watches, page_lock_unfairness. Retained as
+               regression detector only — see check 344 for the authoritative
+               0-hit assertion (rg 'somaxconn' → 0 functional).
        [ ] 329. sysctl.conf header priority-99 override note (v3.45.0):
                _ry_get_file_content sysctl case includes comment
                "priority 99 — overrides" in generated header.
@@ -1631,8 +1660,8 @@ STEP 2: ANALYZE ON DISK
                existing noatime before appending. Prevents double
                noatime on re-runs. string match -q '*noatime*' guard.
        [ ] 332. usbhid.mousepoll=1 removal (v3.46.0): 0 references in
-               KERNEL_PARAMS. KERNEL_PARAMS stays 15 (preempt=full
-               replaced usbhid.mousepoll net count).
+               KERNEL_PARAMS. Current KERNEL_PARAMS count: 15 (see check
+               343 for the v4.0.0 rework net delta).
        [ ] 333. coredump.conf.d semantic checks in --verify-static
                (v3.46.0): Storage=none and ProcessSizeMax=0 verified
                against deployed file content. Catch silent regression
@@ -1712,8 +1741,12 @@ STEP 2: ANALYZE ON DISK
                 in README (DXVK_ASYNC, DXVK_FRAME_RATE, WINE_FULLSCREEN_FSR).
        [ ] 350. RESOLVED_MDNS=resolve (v4.0.0, was `no`): fixes .local
                 resolution under COSMIC DE. Profile global propagates to
-                99-cachyos-resolved.conf MulticastDNS= line.
-                rg 'MulticastDNS=resolve' → ≥1 hit.
+                99-cachyos-resolved.conf via `MulticastDNS=$RESOLVED_MDNS`
+                interpolation in _ry_get_file_content (not as a literal
+                string). Verify the chain, not just the literal.
+                rg 'set -g RESOLVED_MDNS resolve' → 1 hit (profile default).
+                rg 'MulticastDNS=\$RESOLVED_MDNS' → ≥2 hits
+                  (printf in _ry_get_file_content + _chk_grep in verify).
 
   14.27 v4.0.1–v4.0.4 HARDENING (6 checks)
        [ ] 351. _install_fstab_opts (v4.0.1): sudo chmod/chown
@@ -1737,10 +1770,19 @@ STEP 2: ANALYZE ON DISK
                 removed; Fish's `wait` returns 0 regardless of child exit,
                 making sentinels unobservable). See check 371.
                 rg 'case .\*.' in _ry_verify_static body → ≥1 hit.
-       [ ] 356. Hash pipeline pipestatus guard (v4.0.3): 8 sites capture
-                raw line, snapshot $pipestatus, guard on `_ps[1]=0; and _ps[2]=0`.
-                Empty-stdin SHA (e3b0c44…) no longer masks cat failure.
-                rg 'e3b0c44|_ps\[1\]=0.*_ps\[2\]=0' → ≥1 guard.
+       [ ] 356. Hash pipeline pipestatus guard (v4.0.3): ≥7 sites capture
+                raw line, snapshot $pipestatus, guard on fish-native form
+                `test $_ps[1] -eq 0; and test $_ps[2] -eq 0` (success branch)
+                or `test $_ps[1] -ne 0; or test $_ps[2] -ne 0` (failure branch).
+                Empty-stdin SHA no longer masks cat failure: a cat-failure on
+                empty stdin would produce the empty-input SHA sentinel that
+                slips past `test -z` guards — now caught by pipestatus before
+                the hash is consumed.
+                rg 'test \$_ps\[1\] -eq 0; and test \$_ps\[2\] -eq 0' → ≥7 hits.
+                rg 'test \$_ps\[1\] -ne 0; or test \$_ps\[2\] -ne 0' → ≥2 hits.
+                NOTE: pre-v4.4.3 audit prompts used bash-style `_ps[1]=0`
+                which is not fish syntax — false 0-hit was a regex bug,
+                not a script regression.
 
   14.28 v4.1.0–v4.1.3 MODE SURFACE + REGRESSIONS (11 checks)
        [ ] 357. --test-all mode removal (v4.1.0): _ry_do_test_all,
@@ -2040,11 +2082,13 @@ STEP 2: ANALYZE ON DISK
   15.10 FLAG COVERAGE + DISPATCH CONSISTENCY (v4.1.3 argparse model)
        [ ] 227. argparse flags in main dispatcher (verify-static,
                 verify-runtime, check, install-file, h/help, v/version,
-                V/verbose) appear in _ry_show_help. All deprecated flags
-                (--all, --dry-run, --diff, --fix) documented as rejected
-                in README "Deprecated flags — DO NOT re-introduce" section
-                OR silently rejected via deprecated-flag handler with
-                specific per-flag error message.
+                V/verbose) appear in _ry_show_help. All deprecated CLI
+                flags (--all, --dry-run, --diff, --fix, --lint, --test-all,
+                --completions, --logs) rejected via _early_usage_exit
+                handler with per-flag specific error message. README has
+                no CLI-flag deprecation section; the "Deprecated flags —
+                DO NOT re-introduce" header at line 246 is scoped to
+                deprecated environment variables (see check 112).
        [ ] 228. _ry_show_help text enumerates all exit codes present in
                 EXIT_* globals: 0/1/2/3/4/5/10/129/130/131/141/143.
                 No stale 11 (EXIT_LINT removed v3.48.20).
@@ -2349,6 +2393,9 @@ STEP 2: SUMMARY TABLE
     Expect 0 hits  83 (no modules-load.d), 171 (KVER init), 176 177 (functional;
                    comments exempt), 193 (dead globals), 257 259 260 263 268 273
                    283 289-292, 296 (deprecated test -o/-a),
+                   307 (irqbalance RETIRED from MASK v4.0.0 — see 348),
+                   325 (preempt=full retired from KERNEL_PARAMS v4.0.x; dmesg-only),
+                   328 (somaxconn RETIRED from SYSCTL_VALUES v4.0.0 — see 344),
                    334 (--lint removed v3.48.20),
                    335 (_get_boot_time/_progress_skip/_ry_count_managed_cases inlined/merged/replaced),
                    348 (irqbalance off MASK v4.0.0),
