@@ -1,13 +1,11 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 4.3.0
-Derived from: ry-install.fish v4.1.6 (2026-04-19)
-Checks: 370 (359 static + 11 runtime)
-Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.6 specifics · P15 supplemental)
-Scope: production fish scripts with system config, sudo, credentials, embedded configs,
-       external profile loading, argparse-dispatched modes, verification subsystems.
-Policy: ZERO-SKIP. Every source line analyzed. Trace error branches, unreachable code,
-        early returns. No sampling.
+Version: 4.4.0
+Derived from: ry-install.fish v4.1.8 (2026-04-20)
+Checks: 374 (363 static + 11 runtime)
+Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.8 specifics · P15 supplemental)
+Scope: production fish scripts (system config, sudo, credentials, embedded configs, profile loading, argparse dispatch, verification).
+Policy: ZERO-SKIP. Every source line. Trace error branches, unreachable code, early returns. No sampling.
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -65,17 +63,10 @@ STEP 2: FALLBACKS (bash-only; uses arrays, ${args[-1]}, ${range%%:*} — do not 
 
 STEP 3: SAVE CHECKLIST TO DISK
 
-  Extract the 359-check static checklist (phases 1-11, 13-15; phase 12's 11
-  runtime checks live inline in PASS 2) from the CHECKLIST REFERENCE section
-  (end of this document) to /home/claude/audit-data/checklist.txt. Use `view`
-  to read from "CHECKLIST REFERENCE" header through end of Phase 15, then
-  write via create_file or bash heredoc. Verbatim only — no regeneration.
-  Verify: grep -c '^\s*\[ \]' checklist.txt → 359.
-
-  PASS 2 runtime count is inline in PASS 2 (grep target: 11). Total 359 + 11 = 370.
-
-  Read phases on demand:
-    bat --plain -r START:END /home/claude/audit-data/checklist.txt
+  Copy CHECKLIST REFERENCE section (end of doc, through Phase 15) verbatim to
+  /home/claude/audit-data/checklist.txt via view → create_file. No regeneration.
+  Verify: grep -c '^\s*\[ \]' checklist.txt → 363 (P12's 11 runtime checks inline in PASS 2; total 374).
+  Read on demand: bat --plain -r START:END /home/claude/audit-data/checklist.txt
 
 STEP 4: REFERENCE
 
@@ -94,73 +85,49 @@ STEP 4: REFERENCE
 ───────────────────────────────────────────────────────────────
 
 RULES:
-  Work continuously. Batch tool calls. Parallel when independent.
-  >60 lines output → file first. >3 calls with no findings → flush.
-  Blocked → DEFERRED, continue. Save after EVERY pass. Max 3 retries.
-  Never re-read same region twice. >10 items → sub-chunks of 5.
-  Write findings: echo "F-N ..." >> /home/claude/audit-findings.txt
+  Work continuously. Batch + parallel where independent. >60 lines output → file.
+  Blocked → DEFERRED, continue. Save after every pass. Max 3 retries.
+  Never re-read same region. >10 items → sub-chunks of 5.
+  Findings: echo "F-N ..." >> /home/claude/audit-findings.txt
 
 EVIDENCE RULE:
   Every finding cites file:line or data excerpt. No evidence → UNVERIFIED.
-  0 findings > 1 fabricated finding. PASS 3 rejects evidence-less findings.
+  PASS 3 rejects evidence-less findings. 0 findings > 1 fabricated finding.
 
 TOOL MANDATES:
-  RUST FIRST    rg > grep, fd > find, bat > cat/less. Fall back only if unavailable.
-  PARALLEL      Every independent rg/fd call backgrounded with & + wait.
-                Group related checks into ( ... ) & subshells. No serial rg loops.
-  BATCH         Compound commands in single tool calls. Multiple rg in one
-                subshell. One bash_tool call per pass, not per check.
-  PYTHON3       Primary for function body extraction and line iteration.
-                All Python extractors assume fish_indent-formatted input; single-line
-                `begin; cmd; end` breaks depth tracking. Check 215 (fish_indent) must
-                pass before depth-sensitive checks. Define _py_extract (see STEP 1).
-                fish -c extractors fail on some fish versions due to $ escaping.
-                Use python3 for: function lengths, function body extraction,
-                scope shadow detection, tmpfile lifecycle, comment coverage,
-                numeric var init, in-function globals, command prefix counts,
-                bare coreutils detection.
-  PCRE2 GUARD   rg -oP/-cP requires PCRE2. Fall back to rg -o + grep -oP or
-                restructure. rg -Un (multiline) needs rg ≥11; fall back to awk
-                for adjacent-line patterns if unavailable.
-  OUTPUT CAPS   Every multi-line rg MUST pipe through | head -N. head -30 for
-                high-hit (set, sudo, command), -50 for medium, -20 for low.
-                Exception: rg -c (count-only).
+  RUST FIRST    rg > grep, fd > find, bat > cat/less.
+  PARALLEL      Independent rg/fd backgrounded with & + wait. Group into ( ... ) & subshells.
+  BATCH         One bash_tool call per pass, not per check.
+  PYTHON3       For function body extraction, scope/shadow, tmpfile lifecycle, comment
+                coverage, numeric var init, in-function globals, command prefix, bare
+                coreutils. Assumes fish_indent input (single-line begin;cmd;end breaks
+                depth tracking — check 215 must pass first). Define _py_extract (STEP 1).
+  PCRE2 GUARD   rg -oP/-cP needs PCRE2; fall back to rg -o + grep -oP. rg -Un needs ≥11;
+                fall back to awk.
+  OUTPUT CAPS   Every multi-line rg piped through | head -N (-30 high-hit, -50 medium,
+                -20 low). Exception: rg -c.
 
-CONTEXT BUDGET:
-  Total across ALL passes: 3000 lines max.
-    PASS 1 (gather+analyze):  800 lines tool output
-    PASS 2 (runtime):         600 lines tool output
-    PASS 3 (finalize):        200 lines tool output
-    Overhead (analysis+findings+reasoning): 1400 reserve
-  Reasoning competes with this budget — if analysis complex, reduce caps.
-  HIGH-FINDING RULE: PASS 1 > 20 findings → summarize to disk, enter PASS 2
-  with reduced caps (20/30/10 instead of 30/50/20).
+CONTEXT BUDGET (3000 lines total):
+  PASS 1 800 · PASS 2 600 · PASS 3 200 · Reasoning reserve 1400.
+  PASS 1 > 20 findings → summarize to disk, drop caps to 20/30/10.
 
-  RULES:
-  - Raw data → disk only. Never paste >100 lines of rg into context.
-  - After each collection step: wc -l all outputs, report counts only.
-  - Findings → /home/claude/audit-findings.txt (append).
-  - Summary → context (counts + severity + check numbers only).
-  - Single tool call >200 lines: truncate, note "[truncated, full output in $D/filename.txt]".
+  Raw data → disk only. Never paste >100 lines of rg to context.
+  After each collection: wc -l outputs, report counts only.
+  Findings → /home/claude/audit-findings.txt (append).
+  Summary → context (counts + severity + check numbers).
+  Single call >200 lines: truncate, note "[truncated, full output in $D/<file>.txt]".
 
-STALL PREVENTION:
-  Approaching limit (>30 tool calls or >30 messages):
-  1. Save findings immediately
-  2. Skip remaining phases, mark SKIPPED
-  3. Jump to PASS 3 FINALIZE
-  4. Produce partial spec with COVERAGE line
-  5. Verdict: "incomplete — N/15 phases completed"
+STALL PREVENTION (>30 tool calls or >30 messages):
+  1. Save findings  2. Mark remaining phases SKIPPED  3. Jump to PASS 3
+  4. Partial spec + COVERAGE line  5. Verdict "incomplete — N/15 phases completed"
 
   CHECKPOINT after each pass:
-    Save findings to disk. Report structured state:
-    "Checkpoint: N findings [F-1:L42:C5, F-2:L108:C14, ...],
-    phases [list] complete, [list] remaining.
-    Carry-forward: VERSION=X, FUNC_COUNT=Y, SET_L_COUNT=Z."
-    Dedup: if finding ID (file:line:check) exists, skip.
+    "N findings [F-1:L42:C5, ...], phases [list] complete, [list] remaining.
+     Carry-forward: VERSION=X, FUNC_COUNT=Y, SET_L_COUNT=Z."
+    Dedup: skip if finding ID (file:line:check) exists.
 
 PASS ORDER:
-  PASS 1 — GATHER+ANALYZE  phases 1-11, 13-15  (collect → analyze on disk →
-                            write findings → report summary)
+  PASS 1 — GATHER+ANALYZE  phases 1-11, 13-15  (collect → analyze → findings → summary)
   PASS 2 — RUNTIME         phase 12             (fish execution tests)
   PASS 3 — FINALIZE        —                    (summary + spec + zip)
 
@@ -643,9 +610,24 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V416 BARE JSONL APPEND ===" && rg -n '>>"\$LOG_FILE"$' "$F" | head -5
     echo "=== V416 LOG GUARD TOCTOU ===" && rg -n 'test -f "\$LOG_FILE"; or return 0' "$F" | head -5
     echo "=== V416 JSONL WRITER FUNCTIONS ===" && rg -n '^function _write_footer|^function _json_str|^function _log |^function _msg |^function _emit_step_time' "$F" | head -10
+    # ── v4.1.8 additions ──
+    echo "=== V418 SYNC_INFO DROPPED ===" && rg -n 'Synchronizing package databases' "$F" | head -5
+    echo "=== V418 PHASE4 XREF ===" && rg -n 'PKGS_DEL removal: phase 4' "$F" | head -5
+    echo "=== V418 PIPELINE PHASE COMMENTS ===" && rg -n '^# Pipeline phase [0-9]' "$F" | head -10
+    echo "=== V418 HELP DASH DASH REJECT ===" && rg -n 'positional args after .--. are rejected' "$F" | head -5
+    echo "=== V418 HELP NO_COLOR ===" && rg -n 'NO_COLOR=1.*Suppress ANSI color' "$F" | head -5
+    echo "=== V418 HELP ENV BODY ===" && _py_extract "$F" "_ry_show_help" | rg '^  (NO_COLOR|RY_RUN_TIMEOUT|RY_INSTALL_CONFIRM)' | head -10
+    echo "=== V418 FSTAB TMPFSTAB DEREGISTER ===" && rg -n 'Deregister deleted tmpfstab from cleanup list' "$F" | head -5
+    echo "=== V418 FSTAB STRING_MATCH -V ===" && rg -n 'string match -v -- "\$tmpfstab" \$_TRACKED_TMPFILES' "$F" | head -5
+    echo "=== V418 FSTAB TRACKED SET-GA COUNT ===" && _py_extract "$F" "_install_fstab_opts" | rg -c 'set -ga _TRACKED_TMPFILES'
+    echo "=== V418 FSTAB TRACKED STRING-MATCH-V COUNT ===" && _py_extract "$F" "_install_fstab_opts" | rg -c 'string match -v.*_TRACKED_TMPFILES'
+    echo "=== V418 BOOT_SANITY PRINT0 SITES ===" && _py_extract "$F" "_preflight_boot_sanity" | rg 'print0.*string split0' | head -10
+    echo "=== V418 BOOT_SANITY PRINT0 COUNT ===" && _py_extract "$F" "_preflight_boot_sanity" | rg -c 'print0.*string split0'
+    echo "=== V418 TOTAL PRINT0 STRING_SPLIT0 ===" && rg -n '\-print0 [^|]*\| string split0' "$F" | head -10
+    echo "=== V418 TOTAL PRINT0 STRING_SPLIT0 COUNT ===" && rg -c '\-print0 [^|]*\| string split0' "$F"
   ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
-  # GROUP E: P13 gap analysis (race/error/edge tracing). Depends on GROUP D at analysis time (not collection time); 11 shared patterns (FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE, BOOT_SANITY, etc.) collected in GROUP D's p14.txt. GROUP E collects independent data to p13.txt; both files cross-referenced during STEP 2 ANALYZE.
+  # ── GROUP E: P13 gap analysis (race/error/edge). Independent collection → p13.txt; analysis cross-refs p14.txt for 11 shared patterns. ──
   ( set -uo pipefail; (
     echo "=== TMPFILE LIFECYCLE ===" && python3 -ISc "
 import re, sys
@@ -765,36 +747,31 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
 
 STEP 2: ANALYZE ON DISK
 
-  Read checklist from /home/claude/audit-data/checklist.txt. Read $D/*.txt
-  via bat --plain. Compare gathered data against checklist per phase.
-  Write findings to /home/claude/audit-findings.txt.
+  Read checklist + $D/*.txt via bat --plain. Compare per phase. Findings → $O.
 
   DATA FILE → PHASE MAPPING:
-    p1-3.txt  → Phases 1-3 (syntax, routing, errors)
-    p4-5.txt  → Phases 4-5 (vars, security)
-    p6-7.txt  → Phases 6-7 (configs, cross-refs)
-    p8-9.txt  → Phases 8-9 (architecture, patterns)
-    p10-11.txt → Phases 10-11 (docs, testing)
-    p13.txt   → Phase 13 (gap analysis — also reads p14.txt for
-                FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE,
-                BOOT_SANITY shared patterns)
-    p14.txt   → Phase 14 (version specifics v3.1.0-v4.1.6)
-    Phase 15 deep checks use data from ALL files above.
+    p1-3.txt   → P1-3   (syntax, routing, errors)
+    p4-5.txt   → P4-5   (vars, security)
+    p6-7.txt   → P6-7   (configs, cross-refs)
+    p8-9.txt   → P8-9   (architecture, patterns)
+    p10-11.txt → P10-11 (docs, testing)
+    p13.txt    → P13    (gap; also reads p14.txt for FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE, BOOT_SANITY)
+    p14.txt    → P14    (v3.1.0-v4.1.6 specifics)
+    P15 deep checks use all files above.
 
-  p14.txt missing or truncated → P13 shared-pattern checks (234-238) DEFERRED.
-  p13.txt missing → P13 DEFERRED independently.
+  Missing data:
+    p14.txt missing/truncated → P13 shared-pattern checks (234-238) DEFERRED.
+    p13.txt missing            → P13 DEFERRED independently.
 
-  SIZE GATE RECOVERY: truncated file → $D/<file>-lost.txt lists removed
-  sections. Re-collect via targeted rg/python3 to $D/<file>-recovery.txt.
-  Do NOT claim PASS on checks whose data was truncated without recovery.
+  SIZE GATE RECOVERY: $D/<file>-lost.txt lists removed sections. Re-collect via targeted
+  rg/python3 → $D/<file>-recovery.txt. Do NOT claim PASS on truncated checks without recovery.
 
   Report to context ONLY:
     "PASS 1 complete. N findings (N CRIT, N HIGH, N MED, N LOW, N INFO).
      Phases 1-11, 13-15 analyzed. Proceeding to PASS 2.
-     Per-phase tally: P1:N P2:N P3:N P4:N P5:N P6:N P7:N P8:N P9:N
-     P10:N P11:N P13:N P14:N P15:N (must sum to 359)."
+     Per-phase tally: P1:N P2:N ... P15:N (must sum to 363)."
 
-  Do NOT paste raw rg output into context.
+  Never paste raw rg output to context.
 
 ═══════════════════════════════════════════════════════════════
  CHECKLIST REFERENCE (save to /home/claude/audit-data/checklist.txt)
@@ -1144,13 +1121,14 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-380,
+  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-384,
   P15 → #215-233, P12 → #239-249. Checks 168-170 retired in v4.0.0 audit
   prompt (rollback/backup/--dry-run features removed from ry-install v3.5.0–v4.1.0).
   Checks 334-367 added in v4.0.0 audit prompt covering ry-install v3.47.0–v4.1.3.
   Checks 368-378 added in v4.1.0 audit prompt covering ry-install v4.1.4.
   Check 379 added in v4.2.0 audit prompt covering ry-install v4.1.5.
   Check 380 added in v4.3.0 audit prompt covering ry-install v4.1.6.
+  Checks 381-384 added in v4.4.0 audit prompt covering ry-install v4.1.8.
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
 
@@ -1169,7 +1147,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v4.1.6 Specifics (171 checks) ───────────
+─── Phase 14: v3.1.0–v4.1.8 Specifics (175 checks) ───────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1938,6 +1916,72 @@ STEP 2: ANALYZE ON DISK
                     _log entry guard whose TOCTOU window is closed by
                     the new redirect parity).
 
+  14.32 v4.1.8 HYGIENE + HARDENING (4 checks)
+       [ ] 381. `_install_packages` pipeline-phase comments normalized
+                (v4.1.8): misleading `_info "Synchronizing package
+                databases..."` dropped — the DB sync is inline in
+                `pacman -Syu`, not a separate step. Stale "install then
+                remove" comment replaced with an explicit phase-4
+                cross-reference documenting that `PKGS_DEL` removal
+                happens in `_install_configure_services` (pipeline
+                phase 4), not in `_install_packages` (phase 2).
+                Regression checks:
+                  rg 'Synchronizing package databases' → 0 hits.
+                  rg 'PKGS_DEL removal: phase 4 in _install_configure_services' → ≥1 hit.
+                  rg '^# Pipeline phase 2: pacman -Syu' → 1 hit.
+                  rg '^# Pipeline phase 4: daemon-reload, enable/start, mask' → 1 hit.
+       [ ] 382. `_ry_show_help` dispatch-parity + NO_COLOR documentation
+                (v4.1.8): the `--` option description now states that
+                positional args after `--` are rejected with exit 2,
+                matching the dispatcher's actual behavior (argparse
+                has no positional-taking mode flag; trailing args are
+                rejected via `_early_usage_exit`). `NO_COLOR` added to
+                the ENVIRONMENT block — parity with README, which
+                already listed it alongside `RY_RUN_TIMEOUT`,
+                `RY_INSTALL_CONFIRM_BOOT_WIPE`, and
+                `RY_INSTALL_CONFIRM_SYSTEM_UPGRADE`.
+                Regression checks:
+                  rg 'positional args after .--. are rejected with exit 2' → ≥1 hit.
+                  rg 'NO_COLOR=1.*Suppress ANSI color' → ≥1 hit.
+                  _py_extract _ry_show_help | rg '^  (NO_COLOR|RY_RUN_TIMEOUT|RY_INSTALL_CONFIRM)' → 4 hits (all 4 env vars in ENVIRONMENT block).
+       [ ] 383. `_install_fstab_opts` tmpfstab deregistration after
+                atomic rename (v4.1.8): after the intermediate copy
+                `$tmpfstab` is deleted via `sudo rm -f --`, the path is
+                pruned from `_TRACKED_TMPFILES` with
+                `string match -v --`. The cleanup `rm -f` is already
+                idempotent, but without deregistration the list grows
+                stale across long-running or resumed pipelines and
+                misrepresents live tmpfile state to diagnostics.
+                Applied only to the first tmpfile (intermediate copy),
+                not the final target `tmpfstab2` which is consumed by
+                the atomic mv onto `/etc/fstab`.
+                Regression checks:
+                  rg 'Deregister deleted tmpfstab from cleanup list' → 1 hit.
+                  rg 'string match -v -- "\$tmpfstab" \$_TRACKED_TMPFILES' → ≥1 hit.
+                  _py_extract _install_fstab_opts | rg -c 'set -ga _TRACKED_TMPFILES' → 2 (tmpfstab + tmpfstab2).
+                  _py_extract _install_fstab_opts | rg -c 'string match -v.*_TRACKED_TMPFILES' → 1 (only intermediate).
+       [ ] 384. `_preflight_boot_sanity` find-enumeration null-safety
+                (v4.1.8): 3 `find ... -type f` enumerations
+                (`vmlinuz-*`, `initramfs-*.img`,
+                `loader/entries/*.conf`) switched from newline-delimited
+                command substitution to `-print0 2>/dev/null |
+                string split0`. Closes `\n`-in-filename hazard and
+                brings parity with the pre-existing v4.1.8 site in the
+                NM connection enumeration (L4456 in `_ry_verify_runtime`,
+                not `_install_post_package_refresh` — the v4.1.8
+                CHANGELOG mislabels the function name; the line number
+                and pattern are correct). Log rotation in
+                `_acquire_lock` (L5951) uses the equivalent but
+                syntactically distinct `-printf '...%p\0'` form —
+                same null-safety outcome, excluded from the `-print0`
+                regex below by design.
+                Regression checks:
+                  rg "find .* -name 'vmlinuz-\*' -type f -print0" → 1 hit.
+                  rg "find .* -name 'initramfs-\*\.img' -type f -print0" → 1 hit.
+                  rg "find .* -name '\*\.conf' -type f -print0" → ≥1 hit (loader/entries).
+                  _py_extract _preflight_boot_sanity | rg -c 'print0.*string split0' → 3 hits.
+                  rg -c '\-print0 [^|]*\| string split0' → 4 hits (1 pre-existing NM + 3 new boot-sanity).
+
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
   15.1 FORMATTING
@@ -2046,13 +2090,12 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     echo "PASS 2 pre-flight: OK (fish $FISH_VER)"
   fi
 
-  # NON-TARGET HARDWARE: these modes return non-zero on audit containers (missing hardware/configs/profile). Do NOT flag as bugs:
-  #   --verify-runtime → 1 (no managed files)
-  #   --verify-static  → 1 (no managed files deployed)
-  #   --check          → 3 (preflight: root UUID missing) or 10 (drift)
-  #   (no-args install) → non-zero (sudo / root UUID unavailable in container)
-  # Flag as bugs ONLY if exit code differs from expected on target.
-  # REMOVED MODES (v3.48.20–v4.1.0): --lint, --test-all, --completions, --logs, --diff, --dry-run, --all, --fix, --force. These must return EXIT_USAGE (2) via argparse rejection or deprecated-flag handler.
+  # NON-TARGET HARDWARE — expected non-zero in audit container (don't flag):
+  #   --verify-runtime/--verify-static → 1 (no managed files)
+  #   --check → 3 (preflight) or 10 (drift); no-args install → non-zero (no sudo/root UUID)
+  # Flag only if exit ≠ expected on target.
+  # REMOVED MODES (v3.48.20–v4.1.0): --lint --test-all --completions --logs --diff --dry-run
+  # --all --fix --force → all must → EXIT_USAGE (2) via argparse/deprecated-flag handler.
 
   D=/home/claude/audit-data/runtime
   mkdir -p "$D"
@@ -2236,43 +2279,31 @@ STEP 2: SUMMARY TABLE
    11     | 1    | 11     |      |      |
    12     | 2    | 11     |      |      |
    13     | 1    | 5      |      |      |
-   14     | 1    | 171    |      |      |
+   14     | 1    | 175    |      |      |
    15     | 1    | 19     |      |      |
-  TOTAL  |      | 370    |      |      |
+  TOTAL  |      | 374    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
   SPECIAL HANDLING:
-    Always PASS       137 (forbidden-pattern false-positive doc; pattern
-                      list documented intentionally, never fires)
-    Runtime only      143 (redirect regression), PASS 2 checks (11)
-    Expect 0 hits     83 (no modules-load.d dest), 171 (KVER init),
-                      176, 177 (functional; comments exempt),
-                      193 (dead globals removed), 257, 259, 260,
-                      263, 268, 273, 283, 289, 290, 291, 292,
-                      296 (deprecated test -o/-a),
-                      334 (--lint removed v3.48.20),
-                      335 (_get_boot_time, _progress_skip, _ry_count_managed_cases inlined/merged/replaced),
-                      348 (irqbalance no longer in MASK v4.0.0),
-                      357 (--test-all removed v4.1.0),
-                      358 (--completions removed v4.1.0),
-                      367 (no redundant `finished` field),
-                      368 (sha256 prefix retired in _tmpfile_key v4.1.4),
-                      370 (_phase_rcs + _rc_<phase> removed v4.1.4),
-                      371 (hash_rcs + _any_hash_worker_timeout removed v4.1.4;
-                           124/137/143 sentinels phantom),
-                      377 (command sed 's/^ *//' replaced by string trim --left),
-                      379 ('Profile destination key collision' legacy msg
-                           retired v4.1.5, now split into dup-source + key-collision),
-                      380 (bare `>>"$LOG_FILE"` without `2>/dev/null` — all 6
-                           JSONL writers signal-safe as of v4.1.6; primary check
-                           expects 6 hits of the paired pattern, regression
-                           sub-check expects 0 bare appends)
-                      — all regressions
-    Examine stderr    --verify-static/runtime exit 1 on non-target: always
-                      inspect stderr output, do not categorize as
-                      "container-adjusted" without reading actual failure.
-    --check exit 3 or 10 expected in audit container (preflight or drift).
+    Always PASS    137 (forbidden-pattern doc; never fires)
+    Runtime only   143 (redirect regression) + PASS 2 checks (11)
+    Expect 0 hits  83 (no modules-load.d), 171 (KVER init), 176 177 (functional;
+                   comments exempt), 193 (dead globals), 257 259 260 263 268 273
+                   283 289-292, 296 (deprecated test -o/-a),
+                   334 (--lint removed v3.48.20),
+                   335 (_get_boot_time/_progress_skip/_ry_count_managed_cases inlined/merged/replaced),
+                   348 (irqbalance off MASK v4.0.0),
+                   357 (--test-all removed v4.1.0), 358 (--completions removed v4.1.0),
+                   367 (no `finished` field), 368 (sha256 prefix retired v4.1.4),
+                   370 (_phase_rcs/_rc_<phase> removed v4.1.4),
+                   371 (hash_rcs + _any_hash_worker_timeout removed v4.1.4; 124/137/143 sentinels phantom),
+                   377 (command sed 's/^ *//' → string trim --left),
+                   379 ('Profile destination key collision' retired v4.1.5; split into dup-source + key-collision),
+                   380 (bare `>>"$LOG_FILE"` regression — all 6 JSONL writers signal-safe v4.1.6;
+                        primary expects 6 paired hits, sub-check 0)
+    Examine stderr --verify-static/runtime exit 1 on non-target: read actual stderr before
+                   categorizing. --check exit 3 (preflight) or 10 (drift) expected.
 
   Verdict: deploy-ready | fix-required | redesign-needed
 
@@ -2312,15 +2343,11 @@ STEP 3: SPEC FILE
   3. rg '<new-version>' script.fish README.md  (expect N)
   ```
 
-  Before/After must be exact and unique within the file (required for
-  str_replace). If not unique, include enough surrounding context to
-  disambiguate. Spec self-contained. Version bump if any actionable
-  fixes. INFO listed separately.
+  Before/After must be exact + unique (str_replace requirement). If not unique,
+  expand context. Spec self-contained. Version bump iff actionable fixes. INFO separate.
 
-  UNIQUENESS VERIFICATION (run DURING and AFTER spec generation):
-  Requires /bin/bash (uses local, [ ], ${var#prefix}). Depends on the
-  PASS 1 STEP 2 bash shims; do not fish-ify.
-  Before adding each Before/After pair, verify uniqueness first:
+  UNIQUENESS VERIFICATION (run during + after spec generation; bash-only —
+  uses local, [ ], ${var#prefix}; depends on PASS 1 STEP 2 shims):
   ```bash
   verify_unique() {
     local pat="$1"

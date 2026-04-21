@@ -1,13 +1,13 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-4.3.0-blue)
+![version](https://img.shields.io/badge/version-4.4.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![fish](https://img.shields.io/badge/fish-3.4%2B-orange)
-![checks](https://img.shields.io/badge/checks-370-brightgreen)
+![checks](https://img.shields.io/badge/checks-374-brightgreen)
 
 A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, external profile loading, and argparse-dispatched modes with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
 
-Derived from `ry-install.fish` v4.1.6 · 370 checks across 15 phases · Prompt v4.3.0
+Derived from `ry-install.fish` v4.1.8 · 374 checks across 15 phases · Prompt v4.4.0
 
 [changelog](CHANGELOG.md)
 
@@ -26,11 +26,9 @@ Derived from `ry-install.fish` v4.1.6 · 370 checks across 15 phases · Prompt v
 
 | Metric | Value |
 |---|---|
-| Total checks | 370 (359 static + 11 runtime) |
-| Phases | 15 (P1–P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.6 specifics · P15 supplemental) |
-| Passes | 3 (gather+analyze · runtime · finalize) |
-| Retired checks | 168–170 (backup/rollback/--dry-run, ry-install v3.5.0–v4.1.0) |
-| Added checks | 334–380 (v3.47.0–v4.1.6: source-safety, profile system, argparse dispatcher, `_tmpfile_key` parity + collision guard split, SIG-prefix signal matching, SYU/BOOT_WIPE ack gates, nftables firewall, pkill descendant reap, profile destination guard diagnostics split, signal-safe JSONL redirects) |
+| Checks | 374 (363 static + 11 runtime) |
+| Phases | 15 |
+| Passes | 3 |
 
 ## Audit Structure
 
@@ -44,35 +42,35 @@ Derived from `ry-install.fish` v4.1.6 · 370 checks across 15 phases · Prompt v
 
 | Phase | Checks | Scope |
 |---|---|---|
-| 1 | 12 | Fish shell compliance |
-| 2 | 11 | Stderr/stdout routing |
-| 3 | 15 | Error handling and exit codes |
-| 4 | 12 | Variable handling |
+| 1 | 12 | Fish compliance |
+| 2 | 11 | stderr/stdout routing |
+| 3 | 15 | Error handling, exit codes |
+| 4 | 12 | Variables |
 | 5 | 20 | Security |
-| 6 | 30 | Embedded config content |
-| 7 | 14 | Cross-references and consistency |
-| 8 | 19 | Function architecture |
-| 9 | 9 | Patterns and anti-patterns |
-| 10 | 11 | Magic numbers and documentation |
-| 11 | 11 | Testing and validation |
-| 12 | 11 | Runtime tests |
+| 6 | 30 | Embedded configs |
+| 7 | 14 | Cross-references |
+| 8 | 19 | Functions |
+| 9 | 9 | Anti-patterns |
+| 10 | 11 | Magic numbers, docs |
+| 11 | 11 | Test/validate |
+| 12 | 11 | Runtime |
 | 13 | 5 | Gap analysis |
-| 14 | 171 | Version-specific (v3.1.0–v4.1.6 + Fish 4.0–4.6 compat) |
-| 15 | 19 | Supplemental deep checks + profile-system invariants |
+| 14 | 175 | Version-specific |
+| 15 | 19 | Supplemental + profile invariants |
 
 ## Prerequisites
 
-| Tool | Version | Purpose | Fallback |
-|---|---|---|---|
-| fish | 3.4+ | Runtime tests (PASS 2), syntax validation | PASS 2 skipped if < 3.4 |
-| python3 | 3.6+ | Function body extraction, depth-tracking analysis | None (required) |
-| bash | 4.0+ | Data collection scripts, SETUP fallbacks | None (required) |
-| rg (ripgrep) | ≥ 14.1.1 | Pattern matching across all phases | `grep -P` (auto-fallback) |
-| bat | any | Paged file display during analysis | `cat` (auto-fallback) |
-| fd | any | File discovery | `find` (auto-fallback) |
-| fish_indent | bundled | Check 215 canonical formatting | DEFERRED if missing |
+| Tool | Version | Fallback |
+|---|---|---|
+| fish | 3.4+ | PASS 2 skipped |
+| python3 | 3.6+ | required |
+| bash | 4.0+ | required |
+| rg | ≥ 14.1.1 | `grep -P` |
+| bat | any | `cat` |
+| fd | any | `find` |
+| fish_indent | bundled | DEFERRED |
 
-> **Note:** rg is pinned to ≥ 14.1.1. Ubuntu 24.04 ships 14.1.0 which has a confirmed false-negative bug ([BurntSushi/ripgrep#2884](https://github.com/BurntSushi/ripgrep/issues/2884)). SETUP STEP 1 installs the pinned version automatically.
+> rg pinned ≥ 14.1.1 — Ubuntu 24.04 ships 14.1.0 with false-negative bug [#2884](https://github.com/BurntSushi/ripgrep/issues/2884). SETUP STEP 1 installs the pinned version.
 
 ## Usage
 
@@ -89,9 +87,9 @@ Each audit produces:
 
 | File | Description |
 |---|---|
-| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Complete audit prompt (v4.3.0) |
-| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
-| [`LICENSE`](LICENSE) | MIT license |
+| [`fish-audit-prompt.txt`](fish-audit-prompt.txt) | Audit prompt |
+| [`CHANGELOG.md`](CHANGELOG.md) | History |
+| [`LICENSE`](LICENSE) | MIT |
 | [`README.md`](README.md) | This file |
 
 ## License
