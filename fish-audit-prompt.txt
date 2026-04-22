@@ -1,30 +1,44 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 4.4.5
+Version: 4.5.0
 Derived from: ry-install.fish v4.1.8 (2026-04-20)
-Checks: 374 (363 static + 11 runtime)
+Checks: 375 (364 static + 11 runtime)
 Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.8 specifics · P15 supplemental)
 Scope: production fish scripts (system config, sudo, credentials, embedded configs, profile loading, argparse dispatch, verification).
 Policy: ZERO-SKIP. Every source line. Trace error branches, unreachable code, early returns. No sampling.
+Drift note: ry-install v4.1.9–v4.1.14 deltas (PROGRESS_STEPS removal, SYSCTL 19→21, ENV_VARS 12→13, sudo -n parity, null-delim boot-wipe) NOT yet encoded — see CHANGELOG v4.5.0 UNRESEARCHED and next v4.6.0 for sync.
 
 ───────────────────────────────────────────────────────────────
  SETUP
 ───────────────────────────────────────────────────────────────
 
-STEP 1: COPY + TOOLS (HOST: Debian/Ubuntu apt-get; adapt for other distros)
+STEP 1: COPY + TOOLS (auto-detects apt-get / pacman / dnf)
 
   ```bash
   mkdir -p /home/claude/audit-{src,data}
   cp /mnt/user-data/uploads/<file> /home/claude/audit-src/script.fish
   wc -l /home/claude/audit-src/script.fish
 
-  apt-get update -q 2>/dev/null && \
-    apt-get install -y fish fd-find bat 2>/dev/null; true
-  # Pin rg >= 14.1.1 (Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884); re-verify pin vs current Ubuntu LTS before each release.
-  if ! rg --version 2>/dev/null | grep -qE '14\.1\.[1-9]|14\.[2-9]|1[5-9]\.|[2-9][0-9]\.'; then
-    curl -sLO https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep_14.1.1-1_amd64.deb && \
-      dpkg -i ripgrep_14.1.1-1_amd64.deb && rm -f ripgrep_14.1.1-1_amd64.deb
+  if command -v apt-get >/dev/null; then
+    apt-get update -q 2>/dev/null
+    apt-get install -y fish fd-find bat ripgrep 2>/dev/null; true
+  elif command -v pacman >/dev/null; then
+    pacman -S --needed --noconfirm fish fd bat ripgrep 2>/dev/null; true
+  elif command -v dnf >/dev/null; then
+    dnf install -y fish fd-find bat ripgrep 2>/dev/null; true
+  else
+    echo "[CRITICAL] unsupported package manager — install fish fd bat rg manually" >&2
+    exit 2
   fi
+  # Pin rg >= 14.1.1 (Ubuntu 24.04 ships 14.1.0 with false-negative bug #2884); numeric-tuple compare is future-proof.
+  _ver=$(rg --version 2>/dev/null | head -n 1 | awk '{print $2}')
+  IFS=. read -r _rg_maj _rg_min _rg_pat <<<"$_ver"
+  if [ "${_rg_maj:-0}" -lt 14 ] || { [ "$_rg_maj" -eq 14 ] && [ "${_rg_min:-0}" -lt 1 ]; } \
+     || { [ "$_rg_maj" -eq 14 ] && [ "$_rg_min" -eq 1 ] && [ "${_rg_pat:-0}" -lt 1 ]; }; then
+    curl -sLO https://github.com/BurntSushi/ripgrep/releases/download/15.0.1/ripgrep_15.0.1-1_amd64.deb && \
+      dpkg -i ripgrep_15.0.1-1_amd64.deb && rm -f ripgrep_15.0.1-1_amd64.deb
+  fi
+  unset _ver _rg_maj _rg_min _rg_pat
   for pair in "fdfind fd" "batcat bat"; do
     set -- $pair; src="$1" dst="$2"
     if command -v "$src" >/dev/null 2>&1 && ! command -v "$dst" >/dev/null 2>&1; then
@@ -41,7 +55,9 @@ STEP 1: COPY + TOOLS (HOST: Debian/Ubuntu apt-get; adapt for other distros)
 STEP 2: FALLBACKS (bash-only; uses arrays, ${args[-1]}, ${range%%:*} — do not fish-ify)
 
   ```bash
-  command -v rg  >/dev/null 2>&1 || rg()  { grep -P --color=never "$@"; }
+  [ -n "$BASH_VERSION" ] || { echo "[CRITICAL] SETUP STEP 2 requires bash — shim uses arrays, \${args[-1]}, \${range%%:*}, export -f" >&2; exit 2; }
+
+  command -v rg  >/dev/null 2>&1 || { echo "[CRITICAL] rg required; install ripgrep >= 14.1.1 via SETUP STEP 1" >&2; exit 2; }
   command -v bat >/dev/null 2>&1 || bat() {
     local args=() range=""
     while [[ $# -gt 0 ]]; do
@@ -50,13 +66,13 @@ STEP 2: FALLBACKS (bash-only; uses arrays, ${args[-1]}, ${range%%:*} — do not 
     if [[ -n "$range" ]]; then sed -n "${range%%:*},${range##*:}p" "${args[-1]}"; else cat "${args[@]}"; fi
   }
   command -v fd  >/dev/null 2>&1 || fd() { local pat="$1"; shift; find "$@" -name "$pat" 2>/dev/null; }
-  export -f rg bat fd 2>/dev/null; true
+  export -f bat fd 2>/dev/null; true
 
   # Hardening defaults (post-STEP 2, pre-collection)
   export LC_ALL=C.UTF-8                    # Reproducible coreutils (F-6)
   export PYTHONUTF8=1                      # UTF-8 Python I/O (F-7)
   export RIPGREP_CONFIG_PATH=""            # Ignore inherited .ripgreprc (F-13)
-  export PATH='/usr/local/bin:/usr/bin:/bin' # Sanitized PATH (F-15)
+  export PATH='/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' # Sanitized PATH; /usr/sbin for runuser (F-15)
   unset CDPATH BASH_ENV ENV 2>/dev/null; true
   umask 077                                # Owner-only temp files (F-18)
   ```
@@ -65,7 +81,7 @@ STEP 3: SAVE CHECKLIST TO DISK
 
   Copy CHECKLIST REFERENCE section (end of doc, through Phase 15) verbatim to
   /home/claude/audit-data/checklist.txt via view → create_file. No regeneration.
-  Verify: grep -c '^\s*\[ \]' checklist.txt → 363 (P12's 11 runtime checks inline in PASS 2; total 374).
+  Verify: grep -c '^\s*\[ \]' checklist.txt → 364 (P12's 11 runtime checks inline in PASS 2; total 375).
   Read on demand: bat --plain -r START:END /home/claude/audit-data/checklist.txt
 
 STEP 4: REFERENCE
@@ -186,7 +202,7 @@ for line in lines:
 
   # ── GROUP A1: P1-3 syntax, routing, errors ──
   ( set -uo pipefail; (
-    echo "=== BASHISMS ===" && rg -n '\$\(|\[\[|\$\{|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | head -30
+    echo "=== BASHISMS ===" && rg -n '\$\(|\[\[|\$\{|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | rg -v '^[0-9]+:\s*#|ExecStart=|^\s*awk |<<-?\s*['"'"'"]?EOF' | head -30
     echo "=== FISH_INDENT ===" && if command -v fish_indent >/dev/null 2>&1; then fish_indent --check "$F" 2>&1; echo "exit: $?"; else echo "UNAVAILABLE (fish_indent not found — check 216 DEFERRED)"; fi
     echo "=== STRING OPS ===" && rg -n 'string (match|replace|split|join|trim)' "$F" | rg -v ' -- ' | head -30
     echo "=== ARGPARSE ===" && rg -n 'argparse|argv' "$F" | head -30
@@ -289,6 +305,7 @@ for i, line in enumerate(lines, 1):
   # ── GROUP D: P14 v3.1.0–v4.1.8 specifics ──
   ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
+    echo "=== KVER GATE ORDERING ===" && rg -n '^function _ry_check_kernel_version|^set -g KVER_MAJOR' "$F" | head -5
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
     echo "=== _verify_unit_syntax ===" && rg -n '_verify_unit_syntax' "$F" | head -10
     echo "=== _check_service_active ===" && rg -n '_check_service_active' "$F" | head -10
@@ -327,7 +344,7 @@ for i, line in enumerate(lines, 1):
     echo "=== DOTFILE CLEAN ===" && rg -n 'mindepth 1.*exec|find.*mindepth.*rm' "$F" | head -10
     echo "=== LOG TIMESTAMP ===" && rg -n 'date .+%[YsmH]|set -l _ts ' "$F" | head -10
     echo "=== STRING MATCH SEPARATOR ===" && rg -n "string match.*' -- '" "$F" | head -10
-    echo "=== SECTION HEADERS ===" && rg -nc '^# ── ' "$F"
+    echo "=== SECTION HEADERS ===" && rg -c '^# ── ' "$F"
     echo "=== SECTION HEADER LINES ===" && rg -n '^# ── ' "$F" | head -25
     echo "=== FUNCTION COMMENT COVERAGE ===" && python3 -ISc "
 import re, sys
@@ -369,7 +386,7 @@ print(f'{count} in-function set -g')
     echo "=== WIFI CRED SCOPE ===" && rg -n 'WIFI_SSID|WIFI_PASS|wifi_pass|wifi_ssid' "$F" | head -20
     echo "=== LOG ROTATION MODE ===" && rg -n 'MAX_LOGS' "$F" | head -10
     echo "=== LOG SECTION MARKERS ===" && rg -n '=== .* START ===|=== .* END ===' "$F" | head -20
-    echo "=== BLOCK COMMENTS ===" && rg -nc '^# ── .*──$' "$F"
+    echo "=== BLOCK COMMENTS ===" && rg -c '^# ── .*──$' "$F"
     echo "=== STDOUT LEAKS ===" && rg -n 'printf.*\\n|echo$' "$F" | rg -v '>&2|>>|_log|_msg|_ok|_fail|_warn|_err|_info|_dry|_echo|/dev/null|#|get_file_content|show_help|_ntsync_state|_verify_summary|stdout_tmp' | head -20
     echo "=== RUN SECURITY ===" && rg -n 'SECURITY INVARIANT' "$F" | head -5
     echo "=== BARE SET COUNT ===" && rg -c '^\s+set [a-z_]' "$F"
@@ -414,7 +431,7 @@ print(f'{count} in-function set -g')
     echo "=== V371 BATCH FALLBACK ===" && rg -n 'Batch enable failed|retrying individually' "$F" | head -5
     echo "=== V371 DEAD IDX ===" && _py_extract "$F" "_ry_do_check" | rg 'idx 0' | head -5
     echo "=== V3723 FISH-C INJECTION ===" && rg -n 'fish -c "' "$F" | head -10
-    echo "=== V3723 FISH-C SAFE ===" && rg -nc "fish -c '" "$F"
+    echo "=== V3723 FISH-C SAFE ===" && rg -c "fish -c '" "$F"
     echo "=== V3723 BRACE EXPANSION ===" && rg -n '{\$' "$F" | head -10
     echo "=== V3723 ECHO STATUS ===" && rg -n 'echo \$status' "$F" | rg -v '#' | head -10
     echo "=== V3723 TEST DEPRECATED ===" && rg -n 'test [^;]+ -[oa] [^;]+' "$F" | head -10
@@ -424,7 +441,7 @@ print(f'{count} in-function set -g')
     echo "=== V3723 POST-WRITE SYMLINK ===" && rg -n 'test -L.*tmpfile' "$F" | head -10
     echo "=== V3723 INSTALL-FILE RELPATH ===" && rg -n 'install-file requires absolute' "$F" | head -5
     echo "=== V3723 DIFF BATCH ===" && rg -n 'diff_pids|diff.*batch' "$F" | head -10
-    echo "=== V3723 AND-OR STYLE ===" && rg -nc '; and |; or ' "$F"
+    echo "=== V3723 AND-OR STYLE ===" && rg -c '; and |; or ' "$F"
     echo "=== V3723 BASH AND-OR ===" && rg -n '&&|\|\|' "$F" | rg -v '#|awk|/bin/sh|ExecStart|printf.*&&|echo.*&&' | head -20
     echo "=== V3723 LOCK DOUBLE VERIFY ===" && rg -n 'verify_pid2|sleep 0.1' "$F" | head -10
     echo "=== V3723 MKTEMP DEGRADED ===" && rg -n '_MKTEMP_DEGRADED_WARNED' "$F" | head -5
@@ -551,7 +568,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V3513 DETECT_LVM ===" && rg -n '_detect_lvm\b' "$F" | head -5
     echo "=== V3513 KILL KEEPALIVE ESCALATION ===" && rg -n '_kill_sudo_keepalive' "$F" | head -5
     echo "=== V3517 BOOT CASCADE ===" && rg -n '_install_rebuild_boot' "$F" | head -10
-    echo "=== V400 KERNEL PARAMS 15 ===" && rg -nc '^\s+(iommu=pt|amd_pstate=active|amdgpu\.cwsr_enable|amdgpu\.ppfeaturemask|loglevel=3|module_blacklist=pcspkr|nowatchdog|pcie_aspm\.policy|quiet|rd\.systemd\.show_status|rd\.udev\.log_level|split_lock_detect|tsc=reliable|usbcore\.autosuspend|zswap\.enabled)' "$F"
+    echo "=== V400 KERNEL PARAMS 15 ===" && rg -c '^\s+(iommu=pt|amd_pstate=active|amdgpu\.cwsr_enable|amdgpu\.ppfeaturemask|loglevel=3|module_blacklist=pcspkr|nowatchdog|pcie_aspm\.policy|quiet|rd\.systemd\.show_status|rd\.udev\.log_level|split_lock_detect|tsc=reliable|usbcore\.autosuspend|zswap\.enabled)' "$F"
     echo "=== V400 SYSCTL 19 ===" && rg -n 'net\.core\.default_qdisc|net\.core\.netdev_max_backlog|tcp_congestion_control|tcp_fastopen|tcp_notsent_lowat|vm\.max_map_count|fs\.protected_fifos|vm\.compaction_proactiveness|net\.core\.busy_read|net\.core\.netdev_budget' "$F" | head -20
     echo "=== V400 NFTABLES ===" && rg -n 'nftables' "$F" | head -10
     echo "=== V400 AMD_PSTATE ===" && rg -n 'amd_pstate=active' "$F" | head -5
@@ -681,7 +698,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
   # ── Verify parallel group exit status ──
   for f in "$D"/*.txt; do
     fname=$(basename "$f" .txt)
-    exit_val=$(grep -oP 'GROUP_\w+_EXIT=\K[0-9]+' "$f" 2>/dev/null | tail -1)
+    exit_val=$(grep -oP 'GROUP_\w+_EXIT=\K[0-9]+' "$f" 2>/dev/null | tail -n 1)
     if [ -n "$exit_val" ] && [ "$exit_val" != "0" ]; then
       echo "[INFO] GROUP EXIT: $fname exited $exit_val — some data collection commands failed" >> "$O"
     fi
@@ -695,54 +712,49 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
   fi
 
-  # ── SIZE GATE: truncate any file over 500 lines ──
+  # ── SIZE GATE: truncate any file over 500 lines (parallelized) ──
   for f in "$D"/*.txt; do
-    lines=$(wc -l < "$f")
-    if [ "$lines" -gt 500 ]; then
-      fname=$(basename "$f" .txt)
-      # Map data files to phases for diagnostics
-      case "$fname" in
-        p1-3)   phases="P1-P3 (syntax,routing,errors)" ;;
-        p4-5)   phases="P4-P5 (vars,security)" ;;
-        p6-7)   phases="P6-P7 (configs,cross-refs)" ;;
-        p8-9)   phases="P8-P9 (architecture,patterns)" ;;
-        p10-11) phases="P10-P11 (docs,testing)" ;;
-        p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14 (v3.1.0-v4.1.8 specifics)" ;;
-        *)      phases="unknown ($fname)" ;;
-      esac
-      echo "WARNING: $f has $lines lines, truncating to 500" >&2
-      echo "[INFO] SIZE GATE: $f ($phases) truncated from $lines to 500 lines — affected phase checks may have incomplete data" >> "$O"
-      # ── Recovery manifest: list lost sections for targeted re-collection ──
-      grep '^=== .* ===$' "$f" > "$D/${fname}-full-sections.txt"
-      # Skeleton extraction: keep all section headers + first 5 data lines per section
-      awk '/^=== .* ===$/{header=1;count=0;print;next} header{count++;if(count<=5)print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-      grep '^=== .* ===$' "$f" > "$D/${fname}-kept-sections.txt"
-      comm -23 <(sort "$D/${fname}-full-sections.txt") <(sort "$D/${fname}-kept-sections.txt") > "$D/${fname}-lost.txt"
-      lost_count=$(wc -l < "$D/${fname}-lost.txt")
-      if [ "$lost_count" -gt 0 ]; then
-        echo "[INFO] SIZE GATE RECOVERY: $lost_count sections lost in $fname — manifest at $D/${fname}-lost.txt" >> "$O"
+    (
+      lines=$(wc -l < "$f")
+      if [ "$lines" -gt 500 ]; then
+        fname=$(basename "$f" .txt)
+        # Map data files to phases for diagnostics
+        case "$fname" in
+          p1-3)   phases="P1-P3 (syntax,routing,errors)" ;;
+          p4-5)   phases="P4-P5 (vars,security)" ;;
+          p6-7)   phases="P6-P7 (configs,cross-refs)" ;;
+          p8-9)   phases="P8-P9 (architecture,patterns)" ;;
+          p10-11) phases="P10-P11 (docs,testing)" ;;
+          p13)    phases="P13 (gap analysis)" ;;
+          p14)    phases="P14 (v3.1.0-v4.1.8 specifics)" ;;
+          *)      phases="unknown ($fname)" ;;
+        esac
+        echo "WARNING: $f has $lines lines, truncating to 500" >&2
+        echo "[INFO] SIZE GATE: $f ($phases) truncated from $lines to 500 lines — affected phase checks may have incomplete data" >> "$O"
+        # ── Recovery manifest: list lost sections for targeted re-collection ──
+        grep '^=== .* ===$' "$f" > "$D/${fname}-full-sections.txt"
+        # Skeleton extraction: keep all section headers + first 5 data lines per section
+        awk '/^=== .* ===$/{header=1;count=0;print;next} header{count++;if(count<=5)print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+        grep '^=== .* ===$' "$f" > "$D/${fname}-kept-sections.txt"
+        comm -23 <(sort "$D/${fname}-full-sections.txt") <(sort "$D/${fname}-kept-sections.txt") > "$D/${fname}-lost.txt"
+        lost_count=$(wc -l < "$D/${fname}-lost.txt")
+        if [ "$lost_count" -gt 0 ]; then
+          echo "[INFO] SIZE GATE RECOVERY: $lost_count sections lost in $fname — manifest at $D/${fname}-lost.txt" >> "$O"
+        fi
       fi
-    fi
+    ) &
   done
+  wait
 
-  # ── EMPTY SECTION GUARD: detect sections with 0 data lines ──
+  # ── EMPTY SECTION GUARD: single-pass awk (O(n) vs prior O(n²)) ──
   for f in "$D"/p*.txt; do
-    while IFS= read -r header; do
-      section=$(echo "$header" | sed 's/^=== //;s/ ===$//')
-      # Get line count between this header and the next (or EOF)
-      linenum=$(grep -nF "$header" "$f" | head -n 1 | cut -d: -f1)
-      nextnum=$(awk -v start="$linenum" 'NR>start && /^=== .* ===$/{print NR; exit}' "$f")
-      : "${nextnum:=$(wc -l < "$f")}"
-      content_lines=$((nextnum - linenum - 1))
-      if [ "$content_lines" -le 0 ]; then
-        echo "[INFO] EMPTY SECTION: $section in $(basename "$f") — rg returned 0 results or section truncated by SIZE GATE" >> "$O"
-      fi
-    done < <(grep '^=== .* ===$' "$f")
+    awk '/^=== .* ===$/{if (hdr) print hdr "\t" cnt; hdr=$0; cnt=0; next} {cnt++} END {if (hdr) print hdr "\t" cnt}' "$f" \
+      | awk -F'\t' -v f="$(basename "$f")" '$2<=0 {printf "[INFO] EMPTY SECTION: %s in %s — 0 results or truncated\n", $1, f}' >> "$O"
   done
 
   echo "=== DATA COLLECTION COMPLETE ==="
-  wc -l "$D"/*.txt
+  shopt -s nullglob; _files=("$D"/*.txt); shopt -u nullglob
+  [ ${#_files[@]} -gt 0 ] && wc -l "${_files[@]}" || echo "[INFO] no data files produced in $D"
   ```
 
 STEP 2: ANALYZE ON DISK
@@ -1159,12 +1171,17 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v4.1.8 Specifics (175 checks) ───────────
+─── Phase 14: v3.1.0–v4.1.8 Specifics (176 checks) ───────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
                BEFORE kernel-dependent code. Non-numeric fallback to 0.
                Regression: 0 inline uname -r outside init.
+       [ ] 171b. Kernel-gate ordering: `_ry_check_kernel_version` function
+               definition line < first `$KVER_MAJOR` / `$KVER_MINOR` consumer
+               line. Comparator in =KVER GATE ORDERING= section; on
+               unsupported kernels the gate must have been declared before
+               any `test $KVER_MAJOR -ge 6` can run.
 
   14.2 RETURN-VALUE HELPERS (v3.1.0)
        [ ] 172. _ntsync_state: 5 states via stdout. All callers capture local.
@@ -2148,16 +2165,8 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     echo "PASS 2 pre-flight: OK (fish $FISH_VER)"
   fi
 
-  # ── Privilege handling ──
-  # ry-install rejects root at entry with exit 2 (EXIT_USAGE) via
-  # `if test (id -u) -eq 0 … _ry_exit $EXIT_USAGE; …` at ry-install L66-68.
-  # When the audit runs as root, every PASS 2 test would false-fail unless we
-  # drop privileges. Auto-detect; respect PASS2_FISH_USER env override; skip
-  # PASS 2 cleanly if neither runuser(1) nor a usable target user is present.
-  # Also: system users (nobody, daemon) default to $HOME=/nonexistent, which
-  # breaks fish config save AND ry-install log-directory creation → we create
-  # a world-writable tmpdir and force it into the child env via `env HOME=`.
-  FISH_PREFIX=""
+  # Privilege handling — ry-install exits 2 (EXIT_USAGE) for (id -u)==0 at L66-68; if audit runs as root we drop via runuser (PASS2_FISH_USER env override, default nobody) into a 0700 tmpdir HOME (system-user default /nonexistent breaks fish config + log dir creation).
+  FISH_PREFIX_ARGS=()
   if [ "$(id -u)" -eq 0 ]; then
     PASS2_USER="${PASS2_FISH_USER:-nobody}"
     if ! command -v runuser >/dev/null 2>&1; then
@@ -2173,40 +2182,37 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
       exit 0
     fi
     PASS2_HOME=$(mktemp -d "${TMPDIR:-/tmp}/pass2-fish-home-XXXXXX")
-    # Pre-create fish state dirs so 4 parallel invocations (--help, -h, --version, -v)
-    # do not race to mkdir them — fish 3.7+ emits "warning-path: File exists" to stderr
-    # when the mkdir races (even though -p eats the race); false-fails checks 239/240
-    # ("0 stderr bytes"). Creating the subdirs up front eliminates the race entirely.
+    # Pre-create fish state dirs — 4 parallel --help/-h/--version/-v fish invocations would otherwise race to mkdir them; fish 3.7+ emits "warning-path: File exists" on mkdir race (even with -p) → false-fails checks 239/240 ("0 stderr bytes"). Creating subdirs up front eliminates the race entirely.
     mkdir -p "$PASS2_HOME/.local/share/fish" "$PASS2_HOME/.config/fish"
-    chmod -R 0777 "$PASS2_HOME"
-    trap '[ -n "$PASS2_HOME" ] && rm -rf -- "$PASS2_HOME" 2>/dev/null' EXIT
-    FISH_PREFIX="runuser -u $PASS2_USER -- env HOME=$PASS2_HOME"
-    echo "PASS 2: root detected — wrapping fish invocations via '$FISH_PREFIX'"
+    # chown + 0700 (not 0777) — fish sources ~/.config/fish/config.fish even non-interactively; world-writable tmpdir would let a local attacker race config.fish between mkdir and first fish spawn → arbitrary code execution as $PASS2_USER. Hand ownership to that user at 0700; race closed.
+    chown -R "$PASS2_USER:" "$PASS2_HOME"
+    chmod -R 0700 "$PASS2_HOME"
+    trap '[ -n "$PASS2_HOME" ] && rm -rf -- "$PASS2_HOME" 2>/dev/null' EXIT INT TERM HUP
+    FISH_PREFIX_ARGS=(runuser -u "$PASS2_USER" -- env "HOME=$PASS2_HOME")
+    echo "PASS 2: root detected — wrapping fish invocations via '${FISH_PREFIX_ARGS[*]}'"
   fi
 
-  # NON-TARGET HARDWARE — expected non-zero in audit container (don't flag):
-  #   --verify-runtime/--verify-static → 1 (no managed files)
-  #   --check → 3 (preflight) or 10 (drift); no-args install → non-zero (no sudo/root UUID)
-  # Flag only if exit ≠ expected on target.
-  # REMOVED MODES (v3.48.20–v4.1.0): --lint --test-all --completions --logs --diff --dry-run
-  # --all --fix --force → all must → EXIT_USAGE (2) via argparse/deprecated-flag handler.
+  # NON-TARGET HARDWARE — expected non-zero in audit container (don't flag): --verify-runtime/--verify-static → 1 (no managed files); --check → 3 (preflight) or 10 (drift); no-args install → non-zero (no sudo/root UUID). Flag only if exit ≠ expected on target.
+  # REMOVED MODES (v3.48.20–v4.1.0) — --lint --test-all --completions --logs --diff --dry-run --all --fix --force must all → EXIT_USAGE (2) via argparse/deprecated-flag handler.
 
   D=/home/claude/audit-data/runtime
   mkdir -p "$D"
   RUNTIME_TIMEOUT=30
+  HELP_TIMEOUT=${HELP_TIMEOUT:-5}   # help/version paths should be ~0.02s warm; 5s still 200× headroom
 
   # Group A: stdout/stderr separation (--help, --version and short forms)
-  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --help    >"$D/help-out.txt"  2>"$D/help-err.txt"  &
-  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" -h        >"$D/h-out.txt"     2>"$D/h-err.txt"     &
-  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --version >"$D/ver-out.txt"   2>"$D/ver-err.txt"   &
-  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" -v        >"$D/v-out.txt"     2>"$D/v-err.txt"     &
+  timeout "$HELP_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --help    >"$D/help-out.txt"  2>"$D/help-err.txt"  &
+  timeout "$HELP_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" -h        >"$D/h-out.txt"     2>"$D/h-err.txt"     &
+  timeout "$HELP_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --version >"$D/ver-out.txt"   2>"$D/ver-err.txt"   &
+  timeout "$HELP_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" -v        >"$D/v-out.txt"     2>"$D/v-err.txt"     &
   wait
 
   # Group B: exit code matrix (surviving modes + deprecated-flag rejection)
   (
     # B1: help/version/bogus
     for mode in "--help" "-h" "--version" "-v" "--bogus" "--verbose"; do
-      timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
+      case "$mode" in --help|-h|--version|-v) T="$HELP_TIMEOUT" ;; *) T="$RUNTIME_TIMEOUT" ;; esac
+      timeout "$T" "${FISH_PREFIX_ARGS[@]}" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b1.txt" &
   (
@@ -2214,14 +2220,14 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
     for mode in "--verify-static" "--verify-runtime" "--check" \
                 "--install-file" "--install-file relative/path" \
                 "--install-file /etc/kernel/cmdline"; do
-      timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
+      timeout "$RUNTIME_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b2.txt" &
   (
     # B3: deprecated flags — must all return EXIT_USAGE (2)
     for mode in "--all" "-a" "--dry-run" "-n" "--diff" "--fix" "--force" "-f" \
                 "--lint" "--test-all" "--completions" "--logs"; do
-      timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
+      timeout "$RUNTIME_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b3.txt" &
   (
@@ -2230,31 +2236,21 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
                 "--verify-static --check" \
                 "--check --install-file /etc/kernel/cmdline" \
                 "--verify-runtime --install-file /etc/kernel/cmdline"; do
-      timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
+      timeout "$RUNTIME_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" $mode >/dev/null 2>&1; printf '%s → %d\n' "$mode" "$?"
     done
   ) > "$D/exit-b4.txt" &
   wait
   cat "$D"/exit-b{1,2,3,4}.txt > "$D/exit-codes.txt"
 
   # Group B2: stdout leak check for operational modes
-  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --verify-static  >"$D/vs-out.txt"    2>/dev/null &
-  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --verify-runtime >"$D/vr-out.txt"    2>/dev/null &
-  timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX fish "$S" --check          >"$D/check-out.txt" 2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --verify-static  >"$D/vs-out.txt"    2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --verify-runtime >"$D/vr-out.txt"    2>/dev/null &
+  timeout "$RUNTIME_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --check          >"$D/check-out.txt" 2>/dev/null &
   wait
 
-  # Group C: SIGPIPE + redirect bug
-  #   SIGPIPE test: --help | head -n 1. PIPESTATUS[0] is 141 IFF help output
-  #   exceeds pipe buffer (~64 KB Linux default) so fish writes after head
-  #   closes; for small help (~1.6 KB in ry-install v4.1.8), PIPESTATUS=0 is
-  #   normal — fish flushes everything before head closes. Either outcome is
-  #   acceptable at runtime; _cleanup_pipe presence is verified statically
-  #   (checks 189 + 321). FP="$4" is the word-split FISH_PREFIX (empty or
-  #   runuser-wrapper) passed into the single-quoted subshell.
-  /bin/bash -c '
-    D="$1"; S="$2"; T="$3"; FP="$4"
-    timeout "$T" $FP fish "$S" --help 2>&1 | head -n 1 >/dev/null 2>&1
-    printf -- "--help|head -n 1 → %d (0=buffer-fit, 141=SIGPIPE fired; both acceptable)\n" "${PIPESTATUS[0]}" > "$D/exit-c-sigpipe.txt"
-  ' _ "$D" "$S" "$RUNTIME_TIMEOUT" "$FISH_PREFIX" &
+  # Group C: SIGPIPE + redirect bug. SIGPIPE test `--help | head -n 1`: PIPESTATUS[0]=141 iff help output exceeds pipe buffer (~64 KB Linux default) so fish writes after head closes; for small help (~1.6 KB in ry-install v4.1.8) PIPESTATUS=0 is normal. Either outcome acceptable at runtime; _cleanup_pipe presence verified statically (checks 189 + 321). Test still detects non-{0,141} exits (e.g., crash).
+  timeout "$HELP_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --help 2>&1 | head -n 1 >/dev/null
+  printf -- "--help|head -n 1 → %d (0=buffer-fit, 141=SIGPIPE fired; both acceptable)\n" "${PIPESTATUS[0]}" > "$D/exit-c-sigpipe.txt"
   (
     fish -c '
       set result (string trim -- (cat -- /nonexistent/path 2>/dev/null))
@@ -2267,10 +2263,12 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   wait
   cat "$D"/exit-c-sigpipe.txt >> "$D/exit-codes.txt" 2>/dev/null
 
-  # Group D: NO_COLOR enforcement on read-only modes (write modes need sudo+profile)
+  # Group D: NO_COLOR enforcement on read-only modes (write modes need sudo+profile). Two passes: NO_COLOR=1 expect 0 ANSI; NO_COLOR= (empty) expect >0 ANSI per no-color.org v1.0.
   for mode in "--verify-static" "--verify-runtime" "--check" "--help"; do
     safename=$(echo "$mode" | tr ' ' '-')
-    timeout "$RUNTIME_TIMEOUT" $FISH_PREFIX env NO_COLOR=1 fish "$S" $mode 2>"$D/nocolor-$safename.txt" >/dev/null &
+    case "$mode" in --help) T="$HELP_TIMEOUT" ;; *) T="$RUNTIME_TIMEOUT" ;; esac
+    timeout "$T" "${FISH_PREFIX_ARGS[@]}" env NO_COLOR=1 fish "$S" $mode 2>"$D/nocolor-$safename.txt"       >/dev/null &
+    timeout "$T" "${FISH_PREFIX_ARGS[@]}" env NO_COLOR=  fish "$S" $mode 2>"$D/nocolor-empty-$safename.txt" >/dev/null &
   done
   wait
   ```
@@ -2283,11 +2281,12 @@ STEP 2: ANALYSIS
   echo "=== STDERR BYTES (expect 0) ===" && wc -c "$D"/{help,h,ver,v}-err.txt
   echo "=== HELP STDOUT (expect >0) ===" && wc -c "$D"/{help,h}-out.txt
   echo "=== EXIT CODES ===" && bat --plain "$D/exit-codes.txt" 2>/dev/null || cat "$D/exit-codes.txt"
-  echo "=== ANSI (expect 0) ===" && { rg -c '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || grep -cP '\x1b\[' "$D"/nocolor-*.txt 2>/dev/null || echo "none"; }
+  echo "=== ANSI NO_COLOR=1 (expect 0) ===" && { rg -c '\x1b\[' "$D"/nocolor-[^e]*.txt 2>/dev/null || grep -cP '\x1b\[' "$D"/nocolor-[^e]*.txt 2>/dev/null || echo "none"; }
+  echo "=== ANSI NO_COLOR= empty (expect >0 per no-color.org) ===" && { rg -c '\x1b\[' "$D"/nocolor-empty-*.txt 2>/dev/null || grep -cP '\x1b\[' "$D"/nocolor-empty-*.txt 2>/dev/null || echo "none"; }
   echo "=== OP MODE STDOUT BYTES (expect 0 except --check which must be silent) ===" && wc -c "$D"/{vs-out,vr-out,check-out}.txt 2>/dev/null
   echo "=== REDIRECT ===" && bat --plain "$D/redirect-err.txt" 2>/dev/null || cat "$D/redirect-err.txt"
   echo "=== HELP 141 (expect hit in help text) ===" && bat --plain "$D/help-141.txt" 2>/dev/null || cat "$D/help-141.txt"
-  echo "=== VERSION CONTENT ===" && { VER_OUT=$(head -n 1 "$D/ver-out.txt" | sed 's/^v//'); VER_GLOBAL=$(rg -oP 'VERSION "\K[^"]+' "$S" 2>/dev/null || rg -o 'VERSION "[^"]+' "$S" | sed 's/VERSION "//'); echo "stdout: $VER_OUT"; echo "global: $VER_GLOBAL"; test "$VER_OUT" = "$VER_GLOBAL" && echo "MATCH" || echo "MISMATCH"; }
+  echo "=== VERSION CONTENT ===" && { VER_OUT=$(head -n 1 "$D/ver-out.txt" | sed 's/^v//'); VER_GLOBAL=$(rg -o 'VERSION "[^"]+"' "$S" | sed 's/.*VERSION "//; s/"$//' | head -n 1); echo "stdout: $VER_OUT"; echo "global: $VER_GLOBAL"; test "$VER_OUT" = "$VER_GLOBAL" && echo "MATCH" || echo "MISMATCH"; }
   echo "=== FLAG EQUIVALENCE ===" && { diff "$D/help-out.txt" "$D/h-out.txt" >/dev/null 2>&1 && echo "--help/-h: MATCH" || echo "--help/-h: MISMATCH"; diff "$D/ver-out.txt" "$D/v-out.txt" >/dev/null 2>&1 && echo "--version/-v: MATCH" || echo "--version/-v: MISMATCH"; }
   echo "=== DEPRECATED FLAGS (all must → 2) ===" && grep -E '^(--all|-a|--dry-run|-n|--diff|--fix|--force|-f|--lint|--test-all|--completions|--logs) →' "$D/exit-codes.txt"
   echo "=== EXCLUSIVE VIOLATIONS (all must → 2) ===" && grep -E '^--verify-static --|^--verify-runtime --|^--check --' "$D/exit-codes.txt"
@@ -2330,8 +2329,11 @@ STEP 3: CHECKLIST
                 No flag silently succeeds; none fall through to install.
 
   12.4 NO_COLOR
-       [ ] 247. 0 ANSI escapes across ALL modes with NO_COLOR=1
-                (--verify-static, --verify-runtime, --check, --help).
+       [ ] 247. Two-axis NO_COLOR conformance per no-color.org v1.0 (2022):
+                (a) NO_COLOR=1 → 0 ANSI escapes across ALL modes
+                (--verify-static, --verify-runtime, --check, --help);
+                (b) NO_COLOR= (empty string) → ANSI count > 0 (empty value
+                must NOT suppress color).
 
   12.5 REDIRECT BUG REGRESSION
        [ ] 248. `string trim -- (cat -- /nonexistent 2>/dev/null)` produces
@@ -2359,14 +2361,7 @@ STEP 1: COLLATE
   ```bash
   D=/home/claude/audit-data; O=/home/claude/audit-findings.txt
   test -s "$O" || echo "WARNING: No findings" > "$O"
-  fish -c '
-    for sev in CRITICAL HIGH MED LOW INFO BUG STYLE
-      set -l c (rg -c "^F-.*\[$sev\]" $argv[1] 2>/dev/null; or grep -c "^F-.*\[$sev\]" $argv[1] 2>/dev/null; or echo 0)
-      set c $c[-1]
-      echo "$sev: $c"
-    end
-  ' -- "$O"
-  echo "TOTAL: $({ rg -c '^F-' "$O" 2>/dev/null || grep -c '^F-' "$O" 2>/dev/null || echo 0; } | tail -1)"
+  awk -F'[][]' '/^F-/ {s[$2]++; t++} END {for (k in s) printf "%s: %d\n", k, s[k]; printf "TOTAL: %d\n", t}' "$O"
   ```
 
 STEP 2: SUMMARY TABLE
@@ -2386,9 +2381,9 @@ STEP 2: SUMMARY TABLE
    11     | 1    | 11     |      |      |
    12     | 2    | 11     |      |      |
    13     | 1    | 5      |      |      |
-   14     | 1    | 175    |      |      |
+   14     | 1    | 176    |      |      |
    15     | 1    | 19     |      |      |
-  TOTAL  |      | 374    |      |      |
+  TOTAL  |      | 375    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
