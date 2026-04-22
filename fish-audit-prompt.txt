@@ -1,6 +1,6 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 4.4.4
+Version: 4.4.5
 Derived from: ry-install.fish v4.1.8 (2026-04-20)
 Checks: 374 (363 static + 11 runtime)
 Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.8 specifics · P15 supplemental)
@@ -274,8 +274,8 @@ for i, line in enumerate(lines, 1):
     echo "=== TEST_ALL TMPFILES ===" && echo "NOTE: N/A since v4.1.0 removed _ry_do_test_all"
     echo "=== ISATTY ===" && rg -n 'isatty|test -t' "$F" | head -20
     echo "=== PRE-LOCK ===" && rg -n 'case install-file|case install|_acquire_lock' "$F" | head -20
-    echo "=== PROGRESS DEFINED ===" && sed -n '/set -g PROGRESS_STEPS/,/^[^\\]*$/p' "$F" | rg -o '"[^"]*"' | tr -d '"' | sort | head -30
-    echo "=== PROGRESS CALLED ===" && { rg '_progress "' "$F" | rg -v '#|function|grep' | rg -oP '(?<=_progress ")[^"]+' 2>/dev/null || rg '_progress "' "$F" | rg -v '#|function|grep' | sed 's/.*_progress "//' | sed 's/".*//'; } | sort | head -30
+    echo "=== PROGRESS DEFINED ===" && sed -n '/set -g PROGRESS_STEPS/,/^set -g PROGRESS_TOTAL/p' "$F" | grep -oE '^\s+[A-Z][a-zA-Z]+' | sort | head -30
+    echo "=== PROGRESS CALLED ===" && rg -oP '^\s+_progress\s+\K[A-Z][a-zA-Z]+' "$F" | sort -u | head -30
     echo "=== COMPLETIONS REMOVED (v4.1.0) ===" && rg -n '_ry_do_completions|do_completions' "$F" | head -5
     echo "=== DISPATCH CASES (argparse-based v4.1.3) ===" && rg -n '_flag_verify_static|_flag_verify_runtime|_flag_check|_flag_install_file|_flag_help|_flag_version' "$F" | rg -v '#' | head -30
     echo "=== HELP FLAGS ===" && _py_extract "$F" "_ry_show_help" | rg -o '\-\-[a-z][-a-z]+' | rg -v '^--color$' | sort -u | head -30
@@ -286,7 +286,7 @@ for i, line in enumerate(lines, 1):
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v4.1.6 specifics ──
+  # ── GROUP D: P14 v3.1.0–v4.1.8 specifics ──
   ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
@@ -530,7 +530,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V3460 NOATIME DEDUP ===" && rg -n 'noatime.*already|already.*noatime|match.*noatime' "$F" | head -10
     echo "=== V3460 USBHID REMOVED ===" && rg -n 'usbhid' "$F" | head -5
     echo "=== V3460 COREDUMP VERIFY ===" && rg -n 'Storage=none|ProcessSizeMax|coredump.*verify|verify.*coredump' "$F" | head -10
-    # ── v3.47.0–v4.1.6 additions ──
+    # ── v3.47.0–v4.1.8 additions ──
     echo "=== V3480 LINT REMOVED ===" && rg -n '_ry_do_lint|do_lint\b|--lint\b' "$F" | rg -v '#|_err|_warn|_fail|deprecated|removed' | head -10
     echo "=== V410 TEST_ALL REMOVED ===" && rg -n '_ry_do_test_all|do_test_all\b|--test-all\b' "$F" | rg -v '#|removed|deprecated' | head -10
     echo "=== V410 COMPLETIONS REMOVED ===" && rg -n '_ry_do_completions|--completions\b' "$F" | rg -v '#|removed|deprecated' | head -10
@@ -689,7 +689,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
 
   # Post-wait data guard (D and E collect independently; E's P13 analysis reads p14.txt for 11 shared patterns).
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.1.6 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.1.8 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -708,7 +708,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
         p8-9)   phases="P8-P9 (architecture,patterns)" ;;
         p10-11) phases="P10-P11 (docs,testing)" ;;
         p13)    phases="P13 (gap analysis)" ;;
-        p14)    phases="P14 (v3.1.0-v4.1.6 specifics)" ;;
+        p14)    phases="P14 (v3.1.0-v4.1.8 specifics)" ;;
         *)      phases="unknown ($fname)" ;;
       esac
       echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -756,7 +756,7 @@ STEP 2: ANALYZE ON DISK
     p8-9.txt   → P8-9   (architecture, patterns)
     p10-11.txt → P10-11 (docs, testing)
     p13.txt    → P13    (gap; also reads p14.txt for FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE, BOOT_SANITY)
-    p14.txt    → P14    (v3.1.0-v4.1.6 specifics)
+    p14.txt    → P14    (v3.1.0-v4.1.8 specifics)
     P15 deep checks use all files above.
 
   Missing data:
@@ -1263,13 +1263,13 @@ STEP 2: ANALYZE ON DISK
                 to trivial one-liner helpers whose --description is
                 self-explanatory.
        [ ] 197. `command` prefix on ≥150 coreutils calls. No bare coreutils
-                outside sudo context (rg baseline ~173 for v4.1.6).
-       [ ] 198. --argument-names on ≥20 functions (v4.1.6 baseline 21).
+                outside sudo context (rg baseline ~173 for v4.1.8).
+       [ ] 198. --argument-names on ≥20 functions (v4.1.8 baseline 21).
 
   14.11 SCOPING + ROLLBACK (v3.2.9–v3.2.10)
        [ ] 199. In-function set -g: ~130 (intentional VERIFY_*/flag globals;
-                v4.1.6 baseline 130). Cross-block bare set: ~192
-                (v4.1.6 baseline 192). Ratios drift ±10% release-to-release;
+                v4.1.8 baseline 130). Cross-block bare set: ~193
+                (v4.1.8 baseline 193). Ratios drift ±10% release-to-release;
                 absolute counts are trend indicators, not pass gates.
 
   14.12 LOGGING + VERIFICATION (v3.2.8–v3.2.10)
@@ -1294,9 +1294,9 @@ STEP 2: ANALYZE ON DISK
                Not stored as globals beyond pipeline.
        [ ] 204. Unconditional log rotation for all modes. Scope invariants:
                 set -l for true locals, bare set for cross-block updaters,
-                set -g only for intentional globals. v4.1.6 baselines:
-                ~590 set -l, ~192 bare set, ~130 in-function set -g.
-                _run wraps ≥50 commands for logging (v4.1.6 baseline ~56).
+                set -g only for intentional globals. v4.1.8 baselines:
+                ~590 set -l, ~193 bare set, ~130 in-function set -g.
+                _run wraps ≥50 commands for logging (v4.1.8 baseline ~60).
                 These are drift indicators (±15% normal between releases),
                 not pass gates — sudden large deltas warrant investigation.
 
@@ -1339,8 +1339,8 @@ STEP 2: ANALYZE ON DISK
                 examples from v3.3.x audit era retired with those modes
                 (v3.48.20 + v4.1.0); _install_collect_wifi inlined into
                 preflight path.
-       [ ] 213. v4.1.6 scope baselines: in-function set -g ~130
-                (intentional VERIFY_*/flag globals). Bare set ~192
+       [ ] 213. v4.1.8 scope baselines: in-function set -g ~130
+                (intentional VERIFY_*/flag globals). Bare set ~193
                 (cross-block updaters). set -l ~590 (true locals).
                 Ratios matter more than absolute counts (see check 204).
                 Regression signal: set -g count rising sharply without
@@ -2173,7 +2173,12 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
       exit 0
     fi
     PASS2_HOME=$(mktemp -d "${TMPDIR:-/tmp}/pass2-fish-home-XXXXXX")
-    chmod 0777 "$PASS2_HOME"
+    # Pre-create fish state dirs so 4 parallel invocations (--help, -h, --version, -v)
+    # do not race to mkdir them — fish 3.7+ emits "warning-path: File exists" to stderr
+    # when the mkdir races (even though -p eats the race); false-fails checks 239/240
+    # ("0 stderr bytes"). Creating the subdirs up front eliminates the race entirely.
+    mkdir -p "$PASS2_HOME/.local/share/fish" "$PASS2_HOME/.config/fish"
+    chmod -R 0777 "$PASS2_HOME"
     trap '[ -n "$PASS2_HOME" ] && rm -rf -- "$PASS2_HOME" 2>/dev/null' EXIT
     FISH_PREFIX="runuser -u $PASS2_USER -- env HOME=$PASS2_HOME"
     echo "PASS 2: root detected — wrapping fish invocations via '$FISH_PREFIX'"
