@@ -1,12 +1,12 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 4.5.0
-Derived from: ry-install.fish v4.1.8 (2026-04-20)
+Version: 5.0.0
+Derived from: ry-install.fish v4.5.8 (2026-05-02)
 Checks: 375 (364 static + 11 runtime)
-Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.1.8 specifics · P15 supplemental)
-Scope: production fish scripts (system config, sudo, credentials, embedded configs, profile loading, argparse dispatch, verification).
+Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.5.8 specifics · P15 supplemental)
+Scope: production fish scripts (system config, sudo, credentials, embedded configs, argparse dispatch, verification).
 Policy: ZERO-SKIP. Every source line. Trace error branches, unreachable code, early returns. No sampling.
-Drift note: ry-install v4.1.9–v4.1.14 deltas (PROGRESS_STEPS removal, SYSCTL 19→21, ENV_VARS 12→13, sudo -n parity, null-delim boot-wipe) NOT yet encoded — see CHANGELOG v4.5.0 UNRESEARCHED and next v4.6.0 for sync.
+Resync note: v5.0.0 fully resyncs against ry-install v4.5.8. Encoded since v4.5.0: PROGRESS_STEPS removal (v4.1.9), SYSCTL 19→21 (v4.1.10), ENV_VARS 12→13 (v4.1.11), sudo -n parity (v4.1.10), null-delim boot enumeration (v4.1.12); v4.4.27 helper introductions (_pre_dispatch_exit, _unit_state, _check_avail, _chk_path_mode_in, _chk_token_in, _chk_sysfs_match); v4.4.36 fish version gate 3.4→3.6; v4.5.0 profile-system removal + manifest orphan removal + JSONL renames (MANIFEST_SKIP→INSTALL_BAILOUT, PROFILE_INVALID_*→INVALID_*) + _init_runtime replaces _load_profile; v4.5.2 _RY_LOG_WRITE_FAIL tracker; v4.5.4 _RY_MANAGED_FILE_COUNT runtime-derived + _RY_SECRET_FLAGS hoist + RY_INSTALL_FORCE_BOOT_REBUILD env var; v4.5.6 PATH pinning post-fish-gate + sudoers NOPASSWD regex relaxation; v4.5.7 mkinitcpio rollback chmod/chown gating; v4.5.8 _rm_tmp + _is_symlink + _enum_boot_entries helpers.
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -202,7 +202,12 @@ for line in lines:
 
   # ── GROUP A1: P1-3 syntax, routing, errors ──
   ( set -uo pipefail; (
-    echo "=== BASHISMS ===" && rg -n '\$\(|\[\[|\$\{|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | rg -v '^[0-9]+:\s*#|ExecStart=|^\s*awk |<<-?\s*['"'"'"]?EOF' | head -30
+    echo "=== BASHISMS ===" && rg -n '\$\(|\[\[|\$\{|export |&&|\|\||set -e |functions -e|unset |local ' "$F" | rg -v '^[0-9]+:\s*#|ExecStart=|^\s*awk |<<-?\s*['"'"'"]?EOF|\[\[:[a-z]+:\]\]|# lint:ignore|set -e \$|set -e [_A-Za-z]|functions -e [_a-z]|set --erase|XDG_RUNTIME_DIR unset' | rg -v "'[^']*\\\$\{|'[^']*\\|\\||\".*&&.*\"|\".*\\|\\|.*\"" | head -30
+    echo "    NOTE: BASHISMS detector intentionally coarse — exempts # comments, ExecStart=, awk lines,"
+    echo "    heredocs, [[:class:]] POSIX char classes, # lint:ignore markers, fish set --erase forms"
+    echo "    (set -e VAR / set -e \$var / set --erase), functions -e fn, single-quoted printf-arg"
+    echo "    literals (containing \${VAR} or ||), && / || inside double-quoted strings."
+    echo "    Survivors require manual triage — verify each is genuine bash, not fish or string-literal."
     echo "=== FISH_INDENT ===" && if command -v fish_indent >/dev/null 2>&1; then fish_indent --check "$F" 2>&1; echo "exit: $?"; else echo "UNAVAILABLE (fish_indent not found — check 216 DEFERRED)"; fi
     echo "=== STRING OPS ===" && rg -n 'string (match|replace|split|join|trim)' "$F" | rg -v ' -- ' | head -30
     echo "=== ARGPARSE ===" && rg -n 'argparse|argv' "$F" | head -30
@@ -290,8 +295,8 @@ for i, line in enumerate(lines, 1):
     echo "=== TEST_ALL TMPFILES ===" && echo "NOTE: N/A since v4.1.0 removed _ry_do_test_all"
     echo "=== ISATTY ===" && rg -n 'isatty|test -t' "$F" | head -20
     echo "=== PRE-LOCK ===" && rg -n 'case install-file|case install|_acquire_lock' "$F" | head -20
-    echo "=== PROGRESS DEFINED ===" && sed -n '/set -g PROGRESS_STEPS/,/^set -g PROGRESS_TOTAL/p' "$F" | grep -oE '^\s+[A-Z][a-zA-Z]+' | sort | head -30
-    echo "=== PROGRESS CALLED ===" && rg -oP '^\s+_progress\s+\K[A-Z][a-zA-Z]+' "$F" | sort -u | head -30
+    echo "=== PROGRESS_STEPS REMOVED v4.1.9 (regression — expect 0) ===" && rg -n 'PROGRESS_STEPS|PROGRESS_TOTAL' "$F" | head -3
+    echo "=== PROGRESS CALLED (phase names from _progress call sites) ===" && rg -oP '^\s+_progress\s+\K[A-Z][a-zA-Z]+' "$F" | sort -u | head -30
     echo "=== COMPLETIONS REMOVED (v4.1.0) ===" && rg -n '_ry_do_completions|do_completions' "$F" | head -5
     echo "=== DISPATCH CASES (argparse-based v4.1.3) ===" && rg -n '_flag_verify_static|_flag_verify_runtime|_flag_check|_flag_install_file|_flag_help|_flag_version' "$F" | rg -v '#' | head -30
     echo "=== HELP FLAGS ===" && _py_extract "$F" "_ry_show_help" | rg -o '\-\-[a-z][-a-z]+' | rg -v '^--color$' | sort -u | head -30
@@ -302,16 +307,15 @@ for i, line in enumerate(lines, 1):
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v4.1.8 specifics ──
+  # ── GROUP D: P14 v3.1.0–v4.5.8 specifics ──
   ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== KVER GATE ORDERING ===" && rg -n '^function _ry_check_kernel_version|^set -g KVER_MAJOR' "$F" | head -5
     echo "=== _ntsync_state ===" && rg -n '_ntsync_state' "$F" | head -10
     echo "=== _verify_unit_syntax ===" && rg -n '_verify_unit_syntax' "$F" | head -10
-    echo "=== _check_service_active ===" && rg -n '_check_service_active' "$F" | head -10
-    echo "=== _find_pacnew ===" && rg -n '_find_pacnew' "$F" | head -10
-    echo "=== _find_pacnew SUDO -N ===" && _py_extract "$F" "_find_pacnew_files" | rg 'sudo' | head -5
-    echo "=== _get_boot_time ===" && rg -n '_get_boot_time' "$F" | head -10
+    echo "=== _check_service_active_enabled REMOVED (regression — expect 0) ===" && rg -n '_check_service_active' "$F" | head -5
+    echo "=== _find_pacnew_files REMOVED (regression — expect 0) ===" && rg -n '_find_pacnew' "$F" | head -5
+    echo "=== _get_boot_time REMOVED (inlined v3.48.2 — regression — expect 0) ===" && rg -n '_get_boot_time' "$F" | head -5
     echo "=== EXISTENCE_ONLY ===" && rg -n 'existence.only' "$F" | head -10
     echo "=== MODULES-LOAD REGRESSION ===" && rg -n 'modules-load' "$F" | head -10
     echo "=== SP5100_TCO REGRESSION ===" && rg -ni 'sp5100' "$F" | rg -v '^[0-9]*:\s*#' | head -5
@@ -408,14 +412,14 @@ print(f'{count} in-function set -g')
     echo "=== PREGENERATE ===" && rg -n '_pregenerate_content_files' "$F" | head -10
     echo "=== PARALLEL PATTERNS ===" && rg -n 'wait \$|last_pid|&$' "$F" | head -20
     echo "=== ENSURE SUDO CACHED ===" && rg -n '_ensure_sudo_cached' "$F" | head -10
-    echo "=== PARSE SYSTEMCTL SHOW ===" && rg -n '_parse_systemctl_show' "$F" | head -10
+    echo "=== _parse_systemctl_show REMOVED (regression — expect 0) ===" && rg -n '_parse_systemctl_show' "$F" | head -5
     echo "=== TRACKED TMPFILES ===" && rg -n '_TRACKED_TMPFILES' "$F" | head -20
     echo "=== FUNCTIONS SERIALIZATION ===" && rg -n 'needed_funcs|funcs_file' "$F" | head -10
     echo "=== STRING JOIN0 ===" && rg -n 'string join0' "$F" | head -10
     echo "=== PARALLEL CHILD TMPDIR ===" && rg -n 'test_dir|val_dir|diff_batch_dir' "$F" | head -20
-    echo "=== PARSE SYSTEMCTL BODY ===" && _py_extract "$F" "_parse_systemctl_show" | head -30
+    echo "=== PARSE SYSTEMCTL BODY (REMOVED — sentinel extractor for regression) ===" && rg -n '_parse_systemctl_show' "$F" | head -3
     echo "=== V3713 FSTAB HELPER ===" && rg -n '_install_fstab_opts' "$F" | head -10
-    echo "=== V3713 GKEYFILE ESCAPE ===" && rg -n '_gkeyfile_escape' "$F" | head -10
+    echo "=== V3713 GKEYFILE ESCAPE REMOVED (regression — expect 0) ===" && rg -n '_gkeyfile_escape' "$F" | head -5
     echo "=== V3713 VERIFY SUMMARY ===" && _py_extract "$F" "_verify_summary" | rg 'VERIFY_MODE|set -l' | head -10
     echo "=== V3713 DEAD FUNCS ===" && rg -n '_read_installed|validate_systemd_unit|validate_fish_script|passthrough' "$F" | head -5
     echo "=== V3713 KCONFIG CLEANUP ===" && { _dca=$(_py_extract "$F" "_do_cleanup"); printf '%s\n' "$_dca" | rg '_KCONFIG_DATA' | head -5; }
@@ -522,7 +526,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== FISH4 SET -U FISH_COLOR ===" && rg -n 'set -U fish_color' "$F" | head -10
     echo "=== FISH4 BRACE COMPOUND ===" && rg -n '^\s*{$|^\s*}$' "$F" | head -10
     echo "=== V3100 FSTAB ===" && rg -n '_install_fstab_opts|fstab|noatime|lazytime' "$F" | head -20
-    echo "=== V3100 EMIT STEP TIME ===" && rg -n '_emit_step_time' "$F" | head -10
+    echo "=== V3100 EMIT STEP TIME REMOVED (regression — expect 0) ===" && rg -n '_emit_step_time' "$F" | head -5
     echo "=== V3100 SYSCTL VALUES ===" && rg -n 'SYSCTL_VALUES' "$F" | head -10
     echo "=== V3100 IRQBALANCE ===" && rg -n 'irqbalance|threadirqs' "$F" | head -10
     echo "=== V3100 AMDGPU PERF REMOVED ===" && rg -n 'amdgpu-performance\b|amdgpu_performance' "$F" | head -5
@@ -552,11 +556,12 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V410 TEST_ALL REMOVED ===" && rg -n '_ry_do_test_all|do_test_all\b|--test-all\b' "$F" | rg -v '#|removed|deprecated' | head -10
     echo "=== V410 COMPLETIONS REMOVED ===" && rg -n '_ry_do_completions|--completions\b' "$F" | rg -v '#|removed|deprecated' | head -10
     echo "=== LOGS REMOVED ===" && rg -n 'do_logs\b|_logs_file_ops|_logs_journal|_logs_list|--logs\b' "$F" | rg -v '#|removed|deprecated' | head -10
-    echo "=== V3500 PROFILE SYSTEM ===" && rg -n '_load_profile|_validate_profile|_ry_profile_|default-profile' "$F" | head -20
-    echo "=== V3500 PROFILE GLOBALS ===" && rg -n 'PROFILE_NAME|PROFILE_DESC' "$F" | head -10
-    echo "=== V3500 MANIFEST ORPHANS ===" && rg -n '_manifest_check_orphans|_manifest_write' "$F" | head -10
+    echo "=== V3500 PROFILE SYSTEM RETIRED (v4.5.0) ===" && rg -n '_load_profile|_validate_profile|_ry_profile_|default-profile' "$F" | rg -v '^[0-9]+:\s*#' | head -10
+    echo "=== V3500 PROFILE_NAME/DESC INLINED (v4.5.0) ===" && rg -n '^set -g PROFILE_NAME|^set -g PROFILE_DESC' "$F" | head -5
+    echo "=== V3500 MANIFEST RETIRED (v4.5.0) ===" && rg -n '_manifest_check_orphans|_manifest_write' "$F" | head -5
+    echo "=== V3500 INIT_RUNTIME (v4.5.0 replaces _load_profile) ===" && rg -n '_init_runtime' "$F" | head -5
     echo "=== V3501 FLOCK RECLAIM E5 ===" && rg -n 'flock -n -E 5' "$F" | head -5
-    echo "=== V3482 GET_BOOT_TIME INLINED ===" && rg -n '_get_boot_time' "$F" | rg -v '#|removed' | head -5
+    echo "=== V3482 GET_BOOT_TIME INLINED v3.48.2 / REMOVED (regression — expect 0) ===" && rg -n '_get_boot_time' "$F" | head -5
     echo "=== V3482 PROGRESS_SKIP MERGED ===" && rg -n '_progress_skip' "$F" | rg -v '#|merged' | head -5
     echo "=== V3482 BOOT_WIPE_MARKER ===" && rg -n 'BOOT_WIPE_MARKER|RY_INSTALL_CONFIRM_BOOT_WIPE|boot-wipe-acknowledged' "$F" | head -15
     echo "=== V3482 LINT MODE REMOVED ===" && rg -n 'do_lint|--lint' "$F" | rg -v '#|removed|deprecated|--no-lint' | head -5
@@ -581,7 +586,7 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V401 FSTAB SUDO CHMOD ===" && rg -n '\-\-reference=/etc/fstab|sudo chmod.*reference' "$F" | head -5
     echo "=== V401 LOG UMASK 0077 ===" && rg -n 'umask 0077|chmod 700' "$F" | head -10
     echo "=== V403 HASH PIPESTATUS ===" && rg -n 'test \$_ps\[1\] -eq 0; and test \$_ps\[2\] -eq 0|test \$_ps\[1\] -ne 0; or test \$_ps\[2\] -ne 0' "$F" | head -10
-    echo "=== V403 CONTENT_HASH ===" && rg -n '_content_hash' "$F" | head -10
+    echo "=== V403 CONTENT_HASH REMOVED (regression — expect 0) ===" && rg -n '_content_hash' "$F" | head -5
     echo "=== V410 DISPATCHER ARGPARSE ===" && rg -nA2 'argparse --name=ry-install' "$F" | head -15
     echo "=== V410 ARGPARSE EXCLUSIVE ===" && rg -n '\-\-exclusive=' "$F" | head -5
     echo "=== V410 DEPRECATED FLAGS ===" && rg -n '_flag_all\b.*no longer|_flag_dry_run.*removed|_flag_diff.*removed|_flag_fix.*removed' "$F" | head -10
@@ -599,12 +604,13 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V413 BLS EXACT SEGMENT ===" && rg -n 'kernel\.\.custom|path-traversal|exact-segment' "$F" | head -5
     echo "=== V413 EXIT TRIPLE FORM ===" && rg -c '_ry_exit \$[A-Z_]+; and return \$[A-Z_]+; or return \$[A-Z_]+' "$F"
     echo "=== V413 DISPATCHER EXCLUSIVE ===" && rg -n '\-\-exclusive=verify-static,verify-runtime,check,install-file' "$F" | head -3
-    echo "=== MANAGED_FILE_COUNT ===" && rg -n '_RY_MANAGED_FILE_COUNT|_RY_MANAGED_CASE_COUNT' "$F" | head -5
+    echo "=== MANAGED_FILE_COUNT (runtime-derived since v4.5.4) ===" && rg -n '_RY_MANAGED_FILE_COUNT' "$F" | head -5
+    echo "=== MANAGED_CASE_COUNT REMOVED (regression — expect 0) ===" && rg -n '_RY_MANAGED_CASE_COUNT' "$F" | head -3
     # ── v4.1.4 additions ──
     echo "=== V414 TMPFILE_KEY IMPL ===" && _py_extract "$F" "_tmpfile_key" | head -5
     echo "=== V414 TMPFILE_KEY SHA RETIRED ===" && _py_extract "$F" "_tmpfile_key" | rg 'sha256sum|string sub --length 8' | head -5
     echo "=== V414 TMPFILE_KEY SITES ===" && rg -c '_tmpfile_key' "$F"
-    echo "=== V414 VALIDATE PROFILE COLLISION GUARD ===" && rg -n 'Profile destination key collision|Profile destination duplicated|both map to tmpfile key|_seen_keys' "$F" | head -10
+    echo "=== V414 PROFILE GUARD RETIRED (v4.5.0) ===" && rg -n 'Profile destination key collision|Profile destination duplicated|both map to tmpfile key|_seen_keys' "$F" | head -5
     echo "=== V414 PHASE RCS REMOVED ===" && rg -n '_phase_rcs|_rc_config|_rc_units|_rc_env|_rc_sudoers|_rc_fish' "$F" | head -5
     echo "=== V414 HASH RCS REMOVED ===" && rg -n 'hash_rcs|_any_hash_worker_timeout' "$F" | head -5
     echo "=== V414 TIMEOUT SENTINEL REMOVED ===" && rg -n 'contains -- .*124 137 143|_phase_rc.*124' "$F" | head -5
@@ -616,11 +622,8 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V414 RUN STDERR FISH TRIM ===" && rg -n 'string trim --left' "$F" | head -10
     echo "=== V414 RUN STDERR SED RETIRED ===" && rg -n "command sed 's/\^ \*//'" "$F" | head -5
     echo "=== V414 BOOT_TIME LC_ALL ===" && rg -n 'LC_ALL=C printf "%.0f"' "$F" | head -5
-    # ── v4.1.5 additions ──
-    echo "=== V415 PROFILE GUARD SPLIT ===" && rg -n 'Profile destination duplicated|both map to tmpfile key' "$F" | head -10
-    echo "=== V415 PROFILE DUP SOURCE ===" && rg -n "Profile destination duplicated: '\\\$_d'" "$F" | head -5
-    echo "=== V415 PROFILE KEY COLLISION ===" && rg -n "both map to tmpfile key '\\\$_k'" "$F" | head -5
-    echo "=== V415 PROFILE KEY COLLISION LABEL (retained as prefix; expect 1) ===" && rg -n 'Profile destination key collision' "$F" | head -5
+    # ── v4.1.5 additions (profile guard split — RETIRED with profile system v4.5.0) ──
+    echo "=== V415 PROFILE GUARD RETIRED (v4.5.0) ===" && rg -n 'Profile destination duplicated|both map to tmpfile key|Profile destination key collision' "$F" | head -5
     # ── v4.1.6 additions ──
     echo "=== V416 JSONL REDIRECT SITES ===" && rg -n '>>"\$LOG_FILE" 2>/dev/null' "$F" | head -10
     echo "=== V416 JSONL REDIRECT COUNT ===" && rg -c '>>"\$LOG_FILE" 2>/dev/null' "$F"
@@ -706,7 +709,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
 
   # Post-wait data guard (D and E collect independently; E's P13 analysis reads p14.txt for 11 shared patterns).
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.1.8 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.5.8 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -726,7 +729,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
           p8-9)   phases="P8-P9 (architecture,patterns)" ;;
           p10-11) phases="P10-P11 (docs,testing)" ;;
           p13)    phases="P13 (gap analysis)" ;;
-          p14)    phases="P14 (v3.1.0-v4.1.8 specifics)" ;;
+          p14)    phases="P14 (v3.1.0-v4.5.8 specifics)" ;;
           *)      phases="unknown ($fname)" ;;
         esac
         echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -768,7 +771,7 @@ STEP 2: ANALYZE ON DISK
     p8-9.txt   → P8-9   (architecture, patterns)
     p10-11.txt → P10-11 (docs, testing)
     p13.txt    → P13    (gap; also reads p14.txt for FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE, BOOT_SANITY)
-    p14.txt    → P14    (v3.1.0-v4.1.8 specifics)
+    p14.txt    → P14    (v3.1.0-v4.5.8 specifics)
     P15 deep checks use all files above.
 
   Missing data:
@@ -842,10 +845,11 @@ STEP 2: ANALYZE ON DISK
 ─── Phase 3: Error Handling & Exit Codes (15 checks) ─────────
 
   3.1  EXIT CODES
-       [ ] 24. 0: success/help/version/completions/check-clean
+       [ ] 24. 0: success/help/version/check-clean
        [ ] 25. 1: runtime errors; 3: preflight; 4: boot-critical; 5: lock
-       [ ] 26. 2: usage errors; 10: drift (--check); 11: lint errors
-       [ ] 27. Signal exits: 130 SIGINT (128+2), 141 SIGPIPE (128+13)
+       [ ] 26. 2: usage errors; 10: drift (--check)
+       [ ] 27. Signal exits: 129 SIGHUP (128+1), 130 SIGINT (128+2),
+               131 SIGQUIT (128+3), 141 SIGPIPE (128+13), 143 SIGTERM (128+15)
        [ ] 28. Functions use return not exit; no bare exit; no exit inside functions
 
   3.2  STATUS CAPTURE
@@ -853,7 +857,9 @@ STEP 2: ANALYZE ON DISK
        [ ] 30. $pipestatus used for pipes
 
   3.3  SIGNAL HANDLERS
-       [ ] 31. INT, TERM, HUP, fish_exit handlers present
+       [ ] 31. INT, TERM, HUP, QUIT, PIPE, fish_exit handlers present
+               (_cleanup --on-signal INT/TERM/HUP/QUIT; _cleanup_pipe --on-signal PIPE;
+               _cleanup_on_exit --on-event fish_exit; _progress_on_winch --on-signal WINCH)
        [ ] 32. PIPE handler: _cleanup_pipe, exit 141, no stderr on broken pipe
        [ ] 33. Handlers don't mask exit code
 
@@ -927,8 +933,8 @@ STEP 2: ANALYZE ON DISK
 
 ─── Phase 6: Embedded Config Content (30 checks) ─────────────
 
-  3 arrays: SYSTEM (12), USER (3), SERVICE (1) = 16 files (sysctl is 11th SYSTEM entry;
-  udev rqaffinity is 12th added v3.51.x; README MANAGED_FILE_COUNT = 16).
+  3 arrays: SYSTEM (11), USER (3), SERVICE (1) = 15 files (sysctl is 11th SYSTEM entry;
+  _RY_MANAGED_FILE_COUNT runtime-derived from `(count $SYSTEM_DESTINATIONS $USER_DESTINATIONS $SERVICE_DESTINATIONS)` since v4.5.4 — no longer hand-synced against README).
 
   6.1  SYSTEMD-BOOT
        [ ] 71. key<space>value (no =)
@@ -946,7 +952,7 @@ STEP 2: ANALYZE ON DISK
 
   6.4  MKINITCPIO
        [ ] 78. MODULES=() HOOKS=() COMPRESSION="" format correct
-       [ ] 79. Hook order (11 hooks, v4.1.8 baseline):
+       [ ] 79. Hook order (11 hooks, v4.5.8 baseline):
                base → systemd → autodetect → microcode → modconf → kms →
                keyboard → sd-vconsole → block → filesystems → fsck.
                No `resume` hook — sleep/hibernate targets masked.
@@ -994,10 +1000,16 @@ STEP 2: ANALYZE ON DISK
   6.14 SYSCTL.D (v3.2.0)
        [ ] 99. Format: key = value, comment header refs CachyOS vendor; no overlap;
                 priority-99 override note (v3.45.0); string split -m1 '=' (v3.46.0)
-       [ ] 100. SYSCTL_VALUES 19 entries (v4.0.0): default_qdisc=fq,
-                tcp_congestion_control=bbr, tcp_fastopen=3,
-                tcp_notsent_lowat=131072 (v4.0.0 add), netdev_max_backlog=16384,
-                vm.max_map_count=2147483642, busy_read/busy_poll/netdev_budget.
+       [ ] 100. SYSCTL_VALUES 21 entries (v4.1.10 expanded 19→21; current count
+                verified line-by-line in source set -g SYSCTL_VALUES block):
+                default_qdisc=fq, netdev_max_backlog=16384, rmem_max=134217728,
+                wmem_max=134217728, tcp_congestion_control=bbr, tcp_fastopen=3,
+                tcp_mtu_probing=1, tcp_notsent_lowat=131072, tcp_rmem,
+                tcp_slow_start_after_idle=0, tcp_wmem, vm.max_map_count=2147483642,
+                vm.watermark_boost_factor=0, fs.protected_fifos=2,
+                fs.protected_regular=2, vm.compaction_proactiveness=0,
+                busy_read=50, busy_poll=50, netdev_budget=600,
+                kernel.split_lock_mitigate=0, vm.swappiness=100.
                 Removed v4.0.0: inotify.max_user_watches, somaxconn,
                 unprivileged_bpf_disabled, page_lock_unfairness.
 
@@ -1027,18 +1039,17 @@ STEP 2: ANALYZE ON DISK
   7.4  README ↔ HELP
        [ ] 110. All --help options in README
        [ ] 111. Sub-options + modifiers documented as separate entries
-       [ ] 112. --install-file path requirement documented in README. CLI
-                deprecated-flag rejection messages live ONLY in the script's
-                _early_usage_exit handler (per-flag specific messages); the
+       [ ] 112. --install-file path requirement documented in README. The
                 README's "Deprecated flags — DO NOT re-introduce" section
-                (line 246) is scoped to deprecated ENVIRONMENT VARIABLES
-                (DXVK_ASYNC, DXVK_FRAME_RATE, WINE_FULLSCREEN_FSR — VKD3D_FRAME_RATE
-                retained), NOT CLI flags. Verify each deprecated CLI flag
-                (--all, --dry-run, --diff, --fix, --lint, --test-all,
-                --completions, --logs) has a specific _early_usage_exit
-                message in the script. Regression: must NOT add a CLI-flag
-                section to README under the same header — would alias the
-                env-var section.
+                is scoped to deprecated ENVIRONMENT VARIABLES (DXVK_ASYNC,
+                DXVK_FRAME_RATE, WINE_FULLSCREEN_FSR — VKD3D_FRAME_RATE
+                retained), NOT CLI flags. Removed CLI flags (--all, --dry-run,
+                --diff, --fix, --lint, --test-all, --completions, --logs, --force)
+                are absent from the argparse spec and rejected generically by
+                argparse with `[ERR] <argparse-msg>` → `_pre_dispatch_exit
+                $EXIT_USAGE`. No per-flag handler. Regression: must NOT add
+                a CLI-flag section to README under the same header — would
+                alias the env-var section.
        [ ] 113. Exit codes (0,1,2,3,4,5,10,129,130,131,141,143) in both
                 --help and README. Code 11 (EXIT_LINT) retired v3.48.20 —
                 regression: must NOT appear in either.
@@ -1153,6 +1164,10 @@ STEP 2: ANALYZE ON DISK
   Check 379 added in v4.2.0 audit prompt covering ry-install v4.1.5.
   Check 380 added in v4.3.0 audit prompt covering ry-install v4.1.6.
   Checks 381-384 added in v4.4.0 audit prompt covering ry-install v4.1.8.
+  v5.0.0 audit prompt resyncs full Phase 14 against ry-install v4.5.8 (no new
+  check numbers; existing checks rebaselined for v4.1.9-v4.5.8 deltas
+  including PROGRESS_STEPS removal, profile-system removal, helper retirements,
+  fish version gate raise, and runtime-derived _RY_MANAGED_FILE_COUNT).
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
 
@@ -1171,7 +1186,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v4.1.8 Specifics (176 checks) ───────────
+─── Phase 14: v3.1.0–v4.5.8 Specifics (176 checks) ───────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1185,17 +1200,19 @@ STEP 2: ANALYZE ON DISK
 
   14.2 RETURN-VALUE HELPERS (v3.1.0)
        [ ] 172. _ntsync_state: 5 states via stdout. All callers capture local.
-       [ ] 173. _get_boot_time: seconds via stdout or return 1.
-               _find_pacnew_files: paths via stdout. sudo -n prevents
-               credential prompts in dry-run/read-only contexts.
-               No stale inlines.
+       [ ] 173. _get_boot_time + _find_pacnew_files retired: both removed
+               in later versions (`rg '_get_boot_time|_find_pacnew' → 0`).
+               Boot-time logic inlined v3.48.2; pacnew enumeration moved
+               to inline `sudo -n find` with null-delim split0 (v4.1.12).
+               Regression: any new hit on either symbol is a re-introduction.
 
   14.3 VERIFICATION HELPERS (v3.1.0)
        [ ] 174. _verify_unit_syntax: --user auto-detect via path match.
                Handles missing systemd-analyze with _warn + return 0.
-       [ ] 175. _check_service_active_enabled removed: service checks now
-               use direct systemctl is-enabled inline. rg → 0 hits.
-               Callers use batch _parse_systemctl_show or individual calls.
+       [ ] 175. _check_service_active_enabled removed: rg → 0. _parse_systemctl_show
+               also removed in later versions (rg → 0). Service checks now use
+               direct inline `systemctl is-enabled <unit>` or the v4.4.27
+               `_unit_state` helper (rg `_unit_state` → ≥7).
 
   14.4 HELPER DEDUP + REGRESSIONS (v3.1.0)
        [ ] 176. 0 orphaned inline versions: no inline uname -r (outside
@@ -1220,24 +1237,31 @@ STEP 2: ANALYZE ON DISK
                full order validation for embedded content only.
 
   14.5 SYSCTL.D INTEGRATION (v3.2.0)
-       [ ] 180. 99-cachyos-sysctl.conf in SYSTEM_DESTINATIONS (11th entry;
-               12th is 99-nvme-rqaffinity.rules added v3.51.x).
-               _RY_MANAGED_FILE_COUNT=16 (SYSTEM 12 + USER 3 + SERVICE 1;
-               see Phase 6 header and check 104). _ry_get_file_content
-               case matches.
-       [ ] 181. _ry_verify_static: 4 _chk_grep checks. _ry_verify_runtime:
-               reads /proc/sys/ for all 4 keys with cat -- 2>/dev/null.
+       [ ] 180. 99-cachyos-sysctl.conf in SYSTEM_DESTINATIONS (11th entry).
+               _RY_MANAGED_FILE_COUNT runtime-derived since v4.5.4 via
+               `set -g _RY_MANAGED_FILE_COUNT (count $SYSTEM_DESTINATIONS $USER_DESTINATIONS $SERVICE_DESTINATIONS)`
+               — no hardcoded literal. Current resolved value: 15
+               (SYSTEM 11 + USER 3 + SERVICE 1). Regression detector:
+               rg '_RY_MANAGED_FILE_COUNT \(count \$SYSTEM' → ≥1.
+               _ry_get_file_content case matches all 15.
+       [ ] 181. _ry_verify_static + _ry_verify_runtime iterate `$SYSCTL_VALUES`
+               (`for entry in $SYSCTL_VALUES`) at ≥3 sites (validate path,
+               verify-static, verify-runtime). Runtime verify reads /proc/sys/
+               with cat -- 2>/dev/null. No hardcoded key count.
        [ ] 182. _install_configure: sysctl --system reload gated by file
                check + _ask. _ry_do_install_file: string match sysctl.d → reload.
 
   14.6 AUDIT FIXES (v3.1.1–v3.2.10)
        [ ] 183. _install_finalize returns 1 when INSTALL_HAD_ERRORS=true.
        [ ] 184. cat -- terminators in _run capture paths.
-       [ ] 185. --description + comment coverage: function count = 76 =
-               description count (100% --description coverage). Section
-               markers: 3 top-level `# UPPERCASE LABEL` blocks
-               (PROFILE LOADER; LOGGING, MESSAGE OUTPUT, AND VERIFICATION
-               COUNTERS; CLI ARGUMENT PARSING AND DISPATCH).
+       [ ] 185. --description + comment coverage: function count = 137 =
+               description count (100% --description coverage; verified via
+               `rg -c '^function ' == rg -c -- '--description'`). Section
+               markers: 2 top-level `# UPPERCASE LABEL` blocks
+               (LOGGING, MESSAGE OUTPUT, AND VERIFICATION COUNTERS;
+               INSTALL PIPELINE). PROFILE LOADER banner retired with
+               profile system v4.5.0; CLI ARGUMENT PARSING AND DISPATCH
+               banner absorbed into trailing dispatch block (no banner).
                Box-drawing `# ── X ──` style from v3.2.6 era retired.
 
   14.7 ORPHAN LOG + RACE FIXES (v3.2.2–v3.2.3)
@@ -1269,51 +1293,60 @@ STEP 2: ANALYZE ON DISK
                end-of-options marker in _ry_verify_runtime cmdline check.
 
   14.10 CODE QUALITY (v3.2.6–v3.2.10)
-       [ ] 195. Section headers: 3 top-level `# UPPERCASE LABEL` blocks.
-                Legacy `# ── Description ──` box-drawing markers (v3.2.6
-                convention) fully retired; current style is unadorned
-                uppercase capsule comments. rg '^# [A-Z][A-Z ,]{5,}$' → 3.
-       [ ] 196. Function comment coverage: all 76 functions carry
-                --description (100%); ~60 of 76 additionally have a
-                free-form `# ...` comment within 2 lines above the
-                function header. Missing-comment exceptions are limited
-                to trivial one-liner helpers whose --description is
-                self-explanatory.
-       [ ] 197. `command` prefix on ≥150 coreutils calls. No bare coreutils
-                outside sudo context (rg baseline ~173 for v4.1.8).
-       [ ] 198. --argument-names on ≥20 functions (v4.1.8 baseline 21).
+       [ ] 195. Section headers: 2 top-level `# UPPERCASE LABEL` blocks
+                (`LOGGING, MESSAGE OUTPUT, AND VERIFICATION COUNTERS`;
+                `INSTALL PIPELINE`). Legacy `# ── Description ──` box-drawing
+                markers (v3.2.6 convention) fully retired; current style
+                is unadorned uppercase capsule comments. PROFILE LOADER
+                banner retired with v4.5.0 profile-system removal.
+                rg '^# [A-Z][A-Z ,]{5,}$' → 2.
+       [ ] 196. Function comment coverage: all 137 functions carry
+                --description (100%; v4.5.8 baseline). A free-form `# ...`
+                comment within 2 lines above the function header is
+                conventional but not universal. Missing-comment exceptions
+                are limited to trivial one-liner helpers whose --description
+                is self-explanatory.
+       [ ] 197. `command` prefix on ≥100 coreutils calls (v4.5.8 baseline ~122).
+                No bare coreutils outside sudo / message-function context.
+       [ ] 198. --argument-names on ≥20 functions (v4.5.8 baseline ~52).
 
   14.11 SCOPING + ROLLBACK (v3.2.9–v3.2.10)
-       [ ] 199. In-function set -g: ~130 (intentional VERIFY_*/flag globals;
-                v4.1.8 baseline 130). Cross-block bare set: ~193
-                (v4.1.8 baseline 193). Ratios drift ±10% release-to-release;
-                absolute counts are trend indicators, not pass gates.
+       [ ] 199. In-function set -g: ~117 (intentional VERIFY_*/flag globals;
+                v4.5.8 baseline 117). Cross-block bare set: ~151
+                (v4.5.8 baseline 151). v4.5.0 profile-system removal is the
+                single largest contributor to the v4.1.8→v4.5.8 drop; account
+                for it explicitly when interpreting trend lines. Ratios
+                drift ±15% release-to-release; absolute counts are trend
+                indicators, not pass gates.
 
   14.12 LOGGING + VERIFICATION (v3.2.8–v3.2.10)
-       [ ] 200. _log START/END markers on surviving modes. Format:
-               `=== MODE START ===` / `=== MODE END ===` (v4.1.4-current).
-               4 modes: STATIC VERIFICATION, RUNTIME VERIFICATION,
-               INSTALLATION, INSTALL-FILE. Expected hit counts:
-               rg '_log "=== .* START ===' → 4 (one per mode entry point);
-               rg '_log "=== .* END ===' → 9 (one per mode exit branch,
-               verification modes have 2 each, install-file has 4).
+       [ ] 200. _log section markers on surviving modes. v4.5.8 format:
+               `_log "=== $name ==="` (single-line, dynamic interpolation,
+               no START/END suffixes). Three call sites in current source:
+               one parametric site inside the verify driver (passes mode
+               name as `$name`), and two literal sites inside install
+               (`=== INSTALL SYSTEM FILES ===`, `=== INSTALL USER FILES ===`).
+               Expected hit count: rg '_log "=== ' → ≥3. The earlier
+               `=== MODE START ===` / `=== MODE END ===` paired-marker
+               convention from v4.1.4-era was retired; do not regress.
        [ ] 201. In-code section markers organize major subsystems
-                (profile loader, logging/counters, CLI dispatch, install
-                pipeline, verification modes, signal/cleanup chain,
-                tmpfile lifecycle, parallel batch jobs). Style is
-                uppercase-led capsule comments immediately above the
+                (logging/counters, install pipeline, verification modes,
+                signal/cleanup chain, tmpfile lifecycle, parallel batch jobs).
+                Style is uppercase-led capsule comments immediately above the
                 subsystem functions (no box-drawing). Exact count
                 drifts release-to-release; the invariant is readability,
-                not a fixed number.
+                not a fixed number. Profile-loader subsystem retired v4.5.0
+                (gtr9_pro defaults inlined; see check 232).
        [ ] 202. Post-write sha256: _ry_install_file verifies destination hash
                after atomic mv. Failure → INSTALL_HAD_ERRORS.
        [ ] 203. WiFi credentials: set before use, erased after iwd config.
                Not stored as globals beyond pipeline.
        [ ] 204. Unconditional log rotation for all modes. Scope invariants:
                 set -l for true locals, bare set for cross-block updaters,
-                set -g only for intentional globals. v4.1.8 baselines:
-                ~590 set -l, ~193 bare set, ~130 in-function set -g.
-                _run wraps ≥50 commands for logging (v4.1.8 baseline ~60).
+                set -g only for intentional globals. v4.5.8 baselines:
+                ~379 set -l, ~151 bare set, ~117 in-function set -g.
+                _run wraps ≥40 commands for logging (v4.5.8 baseline ~48;
+                profile-system removal v4.5.0 dropped this from ~60).
                 These are drift indicators (±15% normal between releases),
                 not pass gates — sudden large deltas warrant investigation.
 
@@ -1356,14 +1389,17 @@ STEP 2: ANALYZE ON DISK
                 examples from v3.3.x audit era retired with those modes
                 (v3.48.20 + v4.1.0); _install_collect_wifi inlined into
                 preflight path.
-       [ ] 213. v4.1.8 scope baselines: in-function set -g ~130
-                (intentional VERIFY_*/flag globals). Bare set ~193
-                (cross-block updaters). set -l ~590 (true locals).
-                Ratios matter more than absolute counts (see check 204).
-                Regression signal: set -g count rising sharply without
-                new global introductions in changelog.
-       [ ] 214. _analyze_log removed: 0 hits. Step timing consolidated
-               into _emit_step_time helper (v3.40.0).
+       [ ] 213. v4.5.8 scope baselines: in-function set -g ~117
+                (intentional VERIFY_*/flag globals). Bare set ~151
+                (cross-block updaters). set -l ~379 (true locals).
+                v4.5.0 profile-system removal accounts for the bulk of
+                the v4.1.8→v4.5.8 drop (set -l ~590→379, bare set ~193→151,
+                set -g ~130→117). Ratios matter more than absolute counts
+                (see check 204). Regression signal: set -g count rising
+                sharply without new global introductions in changelog.
+       [ ] 214. _analyze_log removed: 0 hits. _emit_step_time helper also
+               removed in later versions (rg → 0); step timing now logged
+               inline at relevant phase boundaries.
 
   14.16 COMPLETIONS VALIDATION FIX (v3.4.1) — RETIRED
        NOTE: This subsection described the v3.4.1 fix for --completions
@@ -1469,14 +1505,7 @@ STEP 2: ANALYZE ON DISK
                returning 0). Callers (_install_preflight) capture failure,
                set INSTALL_HAD_ERRORS, and warn. Regression: 0 code paths
                where < 6.14 gate silently passes.
-       [ ] 280. PROGRESS_STEPS ordering matches execution order in _ry_do_install
-               pipeline. 6-phase model (v4.0.0+): Preflight → Packages →
-               Configuration → Services → Boot → Finalize. `_progress` called
-               once per phase. syu-before-mkinitcpio ordering (v3.7.13)
-               preserved inside the Boot phase via _install_rebuild_boot
-               (see check 287). rg count: 6 PROGRESS_STEPS entries =
-               6 `_progress <phase>` calls (plus 1 `_progress Finalize skip`
-               fast-path variant when Finalize has no work).
+       [ ] 280. PROGRESS_STEPS array retired v4.1.9; phase labels now passed inline at each `_progress <phase>` call site. 6-phase model preserved: Preflight → Packages → Configuration → Services → Boot → Finalize. `_progress` is called once per phase (≈6 sites; verify via `rg -oP '^\s+_progress\s+\K[A-Z][a-zA-Z]+' | sort -u`). syu-before-mkinitcpio ordering (v3.7.13) preserved inside the Boot phase via `_install_rebuild_boot` (see check 287). Regression detector: rg `PROGRESS_STEPS|PROGRESS_TOTAL` → 0.
        [ ] 281. B-5 _ry_do_test_all nested parallelism guard: on systems with
                < 8 cores (nproc), all 14 read-only modes run sequentially
                instead of parallel forking. 8-15 cores: batch throttle in
@@ -1583,7 +1612,7 @@ STEP 2: ANALYZE ON DISK
                /etc/fstab, adds noatime,lazytime to ext4 entries via sed,
                writes to tmpfile, validates with findmnt --verify, then mv.
                No data loss on failure. Idempotent (skip if already present).
-       [ ] 306. SYSCTL_VALUES profile global: 19 entries cross-ref with
+       [ ] 306. SYSCTL_VALUES profile global: 21 entries cross-ref with
                99-cachyos-sysctl.conf content in _ry_get_file_content.
                Runtime verify reads /proc/sys/ for each. Whitespace
                normalization for multi-value keys (tcp_rmem, tcp_wmem).
@@ -1732,10 +1761,11 @@ STEP 2: ANALYZE ON DISK
                 Removed nvme_core.default_ps_max_latency_us=0 (NVMe APST
                 now a regression detector, not an applied param).
                 Verify: rg exact-match on all 15 entries in KERNEL_PARAMS array.
-       [ ] 344. SYSCTL_VALUES 21→19 (v4.0.0): removed somaxconn=8192,
-                unprivileged_bpf_disabled=1, inotify.max_user_watches
-                (kernel auto-scales), page_lock_unfairness (kernel default).
-                Added tcp_notsent_lowat=131072.
+       [ ] 344. SYSCTL_VALUES history: pre-v4.0.0 21 entries → v4.0.0 reduced
+                to 19 (removed somaxconn=8192, unprivileged_bpf_disabled=1,
+                inotify.max_user_watches, page_lock_unfairness; added
+                tcp_notsent_lowat=131072) → v4.1.10 expanded to 21
+                (current). Audit-time count: 21.
                 rg 'somaxconn|unprivileged_bpf|max_user_watches|page_lock_unfairness' → 0 functional.
        [ ] 345. PKGS_ADD 15→14 (v4.0.0): added nftables; removed
                 vulkan-radeon + lib32-vulkan-radeon (chwd auto-installs).
@@ -2016,22 +2046,20 @@ STEP 2: ANALYZE ON DISK
                   rg 'positional args after .--. are rejected with exit 2' → ≥1 hit.
                   rg 'NO_COLOR=1.*Suppress ANSI color' → ≥1 hit.
                   _py_extract _ry_show_help | rg '^  (NO_COLOR|RY_RUN_TIMEOUT|RY_INSTALL_CONFIRM)' → 4 hits (all 4 env vars in ENVIRONMENT block).
-       [ ] 383. `_install_fstab_opts` tmpfstab deregistration after
-                atomic rename (v4.1.8): after the intermediate copy
-                `$tmpfstab` is deleted via `sudo rm -f --`, the path is
-                pruned from `_TRACKED_TMPFILES` with
-                `string match -v --`. The cleanup `rm -f` is already
-                idempotent, but without deregistration the list grows
-                stale across long-running or resumed pipelines and
-                misrepresents live tmpfile state to diagnostics.
-                Applied only to the first tmpfile (intermediate copy),
-                not the final target `tmpfstab2` which is consumed by
-                the atomic mv onto `/etc/fstab`.
-                Regression checks:
-                  rg 'Deregister deleted tmpfstab from cleanup list' → 1 hit.
-                  rg 'string match -v -- "\$tmpfstab" \$_TRACKED_TMPFILES' → ≥1 hit.
-                  _py_extract _install_fstab_opts | rg -c 'set -ga _TRACKED_TMPFILES' → 2 (tmpfstab + tmpfstab2).
-                  _py_extract _install_fstab_opts | rg -c 'string match -v.*_TRACKED_TMPFILES' → 1 (only intermediate).
+       [ ] 383. `_install_fstab_opts` tmpfstab deregistration after atomic
+                rename (mechanism evolved v4.1.8 → v4.5.8). v4.5.8 routes all
+                failure-path deletions through `_rm_tmp $tmpfstab true`
+                (helper does sudo-aware `rm -f --` then auto-untracks via
+                `_untrack_tmpfile`); the success path's post-mv deregistration
+                uses an explicit `_untrack_tmpfile "$tmpfstab"` after the
+                atomic mv. The v4.1.8 inline `string match -v --` pattern
+                and "Deregister deleted tmpfstab from cleanup list" comment
+                were retired with the v4.5.8 helper extraction.
+                Regression checks (v4.5.8 baseline):
+                  _py_extract _install_fstab_opts | rg -c 'set -ga _TRACKED_TMPFILES' → 1.
+                  _py_extract _install_fstab_opts | rg -c '_rm_tmp "\$tmpfstab"' → ≥6.
+                  _py_extract _install_fstab_opts | rg -c '_untrack_tmpfile "\$tmpfstab"' → ≥1.
+                  rg -c '_rm_tmp ' source-wide → ≥30 (helper widely adopted).
        [ ] 384. `_preflight_boot_sanity` find-enumeration null-safety
                 (v4.1.8): 3 `find ... -type f` enumerations
                 (`vmlinuz-*`, `initramfs-*.img`,
@@ -2062,15 +2090,14 @@ STEP 2: ANALYZE ON DISK
 
   15.2 FUNCTION LENGTH ANALYSIS
        [ ] 216. Functions >50 lines: enumerate all. Acceptable for complex
-               modes in 7000+ line script.
+               modes (script is multi-thousand LOC; v4.5.8 baseline 5,205).
        [ ] 217. Functions >100 lines: must be self-contained mode handlers.
 
-  15.3 PROGRESS BAR SYNC
-       [ ] 218. PROGRESS_STEPS array matches _progress call arguments.
+  15.3 PROGRESS BAR — STEPS-ARRAY RETIRED (v4.1.9)
+       [ ] 218. PROGRESS_STEPS / PROGRESS_TOTAL fully removed (v4.1.9): rg → 0 hits. _progress call sites still emit phase labels (Preflight, Packages, Configuration, Services, Boot, Finalize); enumerate via `rg -oP '^\s+_progress\s+\K[A-Z][a-zA-Z]+' | sort -u`. Regression detector: any rg hit on `PROGRESS_STEPS` or `PROGRESS_TOTAL` is a re-introduction.
 
-  15.4 TMPFILE LEAK TRACING
-       [ ] 219. Every function with mktemp: count mktemp vs rm-f per
-               branch. Key: _ry_validate_configs (7/8), _ry_install_file (5/11).
+  15.4 TMPFILE LEAK TRACING (v4.5.8 helper-based)
+       [ ] 219. Tmpfile lifecycle now flows through helpers: `_atomic_write_file` (5 mktemp call sites internally) → `_rm_tmp` (sudo-aware delete + auto _untrack_tmpfile, 30 use sites) → `_is_symlink` (sudo-aware symlink probe, 3 use sites) → `_TRACKED_TMPFILES` registration. Verify: every `mktemp` (script-wide ≈ 22 sites) is paired with either `_rm_tmp` or `_untrack_tmpfile` on every failure branch. _atomic_write_file rolls all paths through `_rm_tmp $tmpfile $use_sudo` (≥7 occurrences inside the function). Per-function 7/8 + 5/11 baselines retired with the v4.5.8 helper extraction (was: pre-helper era when each function inlined mktemp+rm-f).
 
   15.5 ATOMIC FILE OPERATIONS
        [ ] 220. _ry_install_file: chmod BEFORE mv. Symlink TOCTOU guard
@@ -2099,13 +2126,15 @@ STEP 2: ANALYZE ON DISK
   15.10 FLAG COVERAGE + DISPATCH CONSISTENCY (v4.1.3 argparse model)
        [ ] 227. argparse flags in main dispatcher (verify-static,
                 verify-runtime, check, install-file, h/help, v/version,
-                V/verbose) appear in _ry_show_help. All deprecated CLI
-                flags (--all, --dry-run, --diff, --fix, --lint, --test-all,
-                --completions, --logs) rejected via _early_usage_exit
-                handler with per-flag specific error message. README has
-                no CLI-flag deprecation section; the "Deprecated flags —
-                DO NOT re-introduce" header at line 246 is scoped to
-                deprecated environment variables (see check 112).
+                V/verbose) appear in _ry_show_help. Removed CLI flags
+                (--all, --dry-run, --diff, --fix, --lint, --test-all,
+                --completions, --logs, --force) are not enumerated in the
+                argparse spec; argparse rejects unknown flags with a generic
+                `[ERR]` message routed through `_pre_dispatch_exit $EXIT_USAGE`.
+                No per-flag deprecated handler exists. README has no CLI-flag
+                deprecation section; the "Deprecated flags — DO NOT re-introduce"
+                header in README is scoped to deprecated environment variables
+                (see check 112).
        [ ] 228. _ry_show_help text enumerates all exit codes present in
                 EXIT_* globals: 0/1/2/3/4/5/10/129/130/131/141/143.
                 No stale 11 (EXIT_LINT removed v3.48.20).
@@ -2119,21 +2148,16 @@ STEP 2: ANALYZE ON DISK
 
   15.12 PATTERN CORRECTNESS
        [ ] 230. 0 unreachable code. or-return patterns correct.
-                DESTINATIONS ↔ _ry_get_file_content cases match (12+3+1=16).
+                DESTINATIONS ↔ _ry_get_file_content cases match: case-statement
+                count must equal `(count $SYSTEM_DESTINATIONS $USER_DESTINATIONS $SERVICE_DESTINATIONS)`.
+                Current resolved total: 15 (11+3+1). Regression: count mismatch
+                between case branches and DESTINATIONS arrays.
                 Lock PID verify-after-write present (v3.6.3 flock reclaim).
        [ ] 231. string -- separator consistency throughout.
 
-  15.13 PROFILE SYSTEM INVARIANTS (v3.50.0+)
-       [ ] 232. _load_profile resolution order: argparse → env →
-                ~/.config/ry-install/default-profile → gtr9_pro fallback.
-                Every path terminates at _validate_profile call before
-                any destination is read.
-       [ ] 233. _validate_profile checks all 26 unconditional globals
-                individually and reports the missing variable name via
-                _err. 8 conditional globals gated on SYSTEM_DESTINATIONS
-                glob matches (iwd/*, *nm.conf, resolved.conf.d/*,
-                sysctl.d/*). Optional globals (PKGS_DEL, AUR_PKGS,
-                EXPECTED_VULKAN_PKGS, etc.) silently unset-safe.
+  15.13 PROFILE SYSTEM RETIRED (v4.5.0)
+       [ ] 232. Profile subsystem fully removed: rg '_load_profile|_validate_profile|_ry_profile_|default-profile|_manifest_check_orphans|_manifest_write' → 0 functional hits (in-comment forensic notes inside `_init_runtime` description are exempt). gtr9_pro defaults inlined as top-level `set -g` block (PROFILE_NAME=gtr9_pro, PROFILE_DESC at L609-610 of source).
+       [ ] 233. `_init_runtime` (≈63 lines) replaces the prior `_load_profile`/`_validate_profile` chain. Caches root UUID, validates hardware sanity, validates timing globals, precomputes tmp-dir cache. Called once near end of dispatch; `rg '^function _init_runtime' → 1`, `rg '_init_runtime' → ≥2` (definition + call site).
 
 ═══════════════════════════════════════════════════════════════
  PASS 2: RUNTIME (phase 12, 11 checks)
@@ -2150,8 +2174,8 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   FISH_VER=$(fish -c 'echo $version' 2>/dev/null | head -n 1)
   FISH_MAJOR=$(echo "$FISH_VER" | cut -d. -f1)
   FISH_MINOR=$(echo "$FISH_VER" | cut -d. -f2)
-  if [ "${FISH_MAJOR:-0}" -lt 3 ] || { [ "$FISH_MAJOR" -eq 3 ] && [ "${FISH_MINOR:-0}" -lt 4 ]; }; then
-    echo "[CRITICAL] fish $FISH_VER < 3.4 — PASS 2 SKIPPED" >> "$O"; exit 0
+  if [ "${FISH_MAJOR:-0}" -lt 3 ] || { [ "$FISH_MAJOR" -eq 3 ] && [ "${FISH_MINOR:-0}" -lt 6 ]; }; then
+    echo "[CRITICAL] fish $FISH_VER < 3.6 — PASS 2 SKIPPED" >> "$O"; exit 0
   fi
   SYNTAX_OK=1
   if ! fish --no-execute "$S" 2>/dev/null; then
@@ -2193,7 +2217,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   fi
 
   # NON-TARGET HARDWARE — expected non-zero in audit container (don't flag): --verify-runtime/--verify-static → 1 (no managed files); --check → 3 (preflight) or 10 (drift); no-args install → non-zero (no sudo/root UUID). Flag only if exit ≠ expected on target.
-  # REMOVED MODES (v3.48.20–v4.1.0) — --lint --test-all --completions --logs --diff --dry-run --all --fix --force must all → EXIT_USAGE (2) via argparse/deprecated-flag handler.
+  # REMOVED MODES (v3.48.20–v4.1.0) — --lint --test-all --completions --logs --diff --dry-run --all --fix --force are not in the v4.5.8 argparse spec; argparse rejects them with a generic [ERR] message → EXIT_USAGE (2). No per-flag handler; rejection is structural.
 
   D=/home/claude/audit-data/runtime
   mkdir -p "$D"
@@ -2248,7 +2272,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   timeout "$RUNTIME_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --check          >"$D/check-out.txt" 2>/dev/null &
   wait
 
-  # Group C: SIGPIPE + redirect bug. SIGPIPE test `--help | head -n 1`: PIPESTATUS[0]=141 iff help output exceeds pipe buffer (~64 KB Linux default) so fish writes after head closes; for small help (~1.6 KB in ry-install v4.1.8) PIPESTATUS=0 is normal. Either outcome acceptable at runtime; _cleanup_pipe presence verified statically (checks 189 + 321). Test still detects non-{0,141} exits (e.g., crash).
+  # Group C: SIGPIPE + redirect bug. SIGPIPE test `--help | head -n 1`: PIPESTATUS[0]=141 iff help output exceeds pipe buffer (~64 KB Linux default) so fish writes after head closes; for small help (~1.7 KB in ry-install v4.5.8) PIPESTATUS=0 is normal. Either outcome acceptable at runtime; _cleanup_pipe presence verified statically (checks 189 + 321). Test still detects non-{0,141} exits (e.g., crash).
   timeout "$HELP_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --help 2>&1 | head -n 1 >/dev/null
   printf -- "--help|head -n 1 → %d (0=buffer-fit, 141=SIGPIPE fired; both acceptable)\n" "${PIPESTATUS[0]}" > "$D/exit-c-sigpipe.txt"
   (
@@ -2322,11 +2346,17 @@ STEP 3: CHECKLIST
                 10 (EXIT_DRIFT): --check when prereqs OK but managed files
                 drift from embedded content.
 
-  12.3 DEPRECATED FLAG HANDLING
-       [ ] 246. All 12 deprecated flags emit specific `[ERR]` message via
-                _early_usage_exit and exit EXIT_USAGE. Message format:
-                "<flag> is no longer required/removed; <alternative>".
-                No flag silently succeeds; none fall through to install.
+  12.3 DEPRECATED / UNKNOWN FLAG HANDLING
+       [ ] 246. argparse spec lists only surviving flags
+                (`h/help v/version V/verbose verify-static verify-runtime check install-file=`
+                with `--exclusive=verify-static,verify-runtime,check,install-file`).
+                Unknown / removed flags (--all, -a, --dry-run, -n, --diff, --fix,
+                --force, -f, --lint, --test-all, --completions, --logs, etc.) are
+                rejected by argparse with a generic `[ERR] <argparse-msg>` (or
+                `[ERR] Invalid arguments: $_ORIG_ARGV` if argparse stderr is empty),
+                followed by `_ry_show_help` to stderr, then `_pre_dispatch_exit
+                $EXIT_USAGE` (exit 2). No per-flag specific message; no flag
+                silently succeeds; none fall through to install.
 
   12.4 NO_COLOR
        [ ] 247. Two-axis NO_COLOR conformance per no-color.org v1.0 (2022):
@@ -2344,7 +2374,7 @@ STEP 3: CHECKLIST
        [ ] 249. Help | head -n 1 returns {0, 141}: 141 if help output
                 exceeds pipe buffer and fish writes after head closes;
                 0 if help fits entirely in pipe buffer (typical —
-                ry-install v4.1.8 help is ~1.6 KB, well below 64 KB
+                ry-install v4.5.8 help is ~1.7 KB, well below 64 KB
                 Linux default). Either is acceptable at runtime; strict
                 _cleanup_pipe presence + SIGPIPE handler registration
                 are verified statically by checks 189 + 321. Help text
@@ -2404,10 +2434,18 @@ STEP 2: SUMMARY TABLE
                    370 (_phase_rcs/_rc_<phase> removed v4.1.4),
                    371 (hash_rcs + _any_hash_worker_timeout removed v4.1.4; 124/137/143 sentinels phantom),
                    377 (command sed 's/^ *//' → string trim --left),
-                   379 (dup-source split out v4.1.5; 'Profile destination key collision' label retained
-                        as key-collision branch prefix — 1 hit expected, NOT a legacy-msg regression),
                    380 (bare `>>"$LOG_FILE"` regression — all 6 JSONL writers signal-safe v4.1.6;
-                        primary expects 6 paired hits, sub-check 0)
+                        primary expects 6 paired hits, sub-check 0).
+    Expect 0 hits — v4.1.9 → v4.5.8 retirements (regression detectors only):
+                   PROGRESS_STEPS / PROGRESS_TOTAL (v4.1.9, checks 218 + 280),
+                   _load_profile / _validate_profile / _ry_profile_* / default-profile
+                   / _manifest_check_orphans / _manifest_write (v4.5.0, checks 232 + 233),
+                   _check_service_active_enabled (v3.1.0+, check 175),
+                   _find_pacnew_files / _get_boot_time (later versions, check 173),
+                   _parse_systemctl_show / _gkeyfile_escape / _emit_step_time
+                   / _content_hash / _RY_MANAGED_CASE_COUNT (later versions),
+                   379 (legacy 'Profile destination key collision' label
+                        retired with profile-system removal v4.5.0).
     Examine stderr --verify-static/runtime exit 1 on non-target: read actual stderr before
                    categorizing. --check exit 3 (preflight) or 10 (drift) expected.
 

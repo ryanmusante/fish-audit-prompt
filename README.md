@@ -1,13 +1,13 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-4.5.0-blue)
+![version](https://img.shields.io/badge/version-5.0.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
-![fish](https://img.shields.io/badge/fish-3.4%2B-orange)
+![fish](https://img.shields.io/badge/fish-3.6%2B-orange)
 ![checks](https://img.shields.io/badge/checks-375-brightgreen)
 
-A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, external profile loading, and argparse-dispatched modes with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
+A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, and argparse-dispatched modes with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
 
-Derived from `ry-install.fish` v4.1.8 · 375 checks across 15 phases · Prompt v4.5.0
+Derived from `ry-install.fish` v4.5.8 · 375 checks across 15 phases · Prompt v5.0.0
 
 [changelog](CHANGELOG.md)
 
@@ -57,13 +57,13 @@ Derived from `ry-install.fish` v4.1.8 · 375 checks across 15 phases · Prompt v
 | 12 | 11 | Runtime |
 | 13 | 5 | Gap analysis |
 | 14 | 176 | Version-specific |
-| 15 | 19 | Supplemental + profile invariants |
+| 15 | 19 | Supplemental deep checks |
 
 ## Prerequisites
 
 | Tool | Version | Fallback |
 |---|---|---|
-| fish | 3.4+ | PASS 2 skipped |
+| fish | 3.6+ | PASS 2 skipped |
 | python3 | 3.6+ | required |
 | bash | 4.0+ | required (hard-enforced at SETUP STEP 2) |
 | rg | ≥ 14.1.1 (pins to 15.0.1 if older) | hard-fail (no `grep -P` degrade mode) |
