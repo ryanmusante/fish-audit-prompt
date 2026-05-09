@@ -1,12 +1,12 @@
 FISH SHELL SCRIPT AUDIT PROMPT
 ===============================
-Version: 5.0.0
-Derived from: ry-install.fish v4.5.8 (2026-05-02)
-Checks: 375 (364 static + 11 runtime)
-Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v4.5.8 specifics · P15 supplemental)
+Version: 5.0.1
+Derived from: ry-install.fish v5.0.1 (2026-05-09)
+Checks: 385 (374 static + 11 runtime)
+Phases: 15 (P1-P11 static · P12 runtime · P13 gap · P14 v3.1.0–v5.0.1 specifics · P15 supplemental)
 Scope: production fish scripts (system config, sudo, credentials, embedded configs, argparse dispatch, verification).
 Policy: ZERO-SKIP. Every source line. Trace error branches, unreachable code, early returns. No sampling.
-Resync note: v5.0.0 fully resyncs against ry-install v4.5.8. Encoded since v4.5.0: PROGRESS_STEPS removal (v4.1.9), SYSCTL 19→21 (v4.1.10), ENV_VARS 12→13 (v4.1.11), sudo -n parity (v4.1.10), null-delim boot enumeration (v4.1.12); v4.4.27 helper introductions (_pre_dispatch_exit, _unit_state, _check_avail, _chk_path_mode_in, _chk_token_in, _chk_sysfs_match); v4.4.36 fish version gate 3.4→3.6; v4.5.0 profile-system removal + manifest orphan removal + JSONL renames (MANIFEST_SKIP→INSTALL_BAILOUT, PROFILE_INVALID_*→INVALID_*) + _init_runtime replaces _load_profile; v4.5.2 _RY_LOG_WRITE_FAIL tracker; v4.5.4 _RY_MANAGED_FILE_COUNT runtime-derived + _RY_SECRET_FLAGS hoist + RY_INSTALL_FORCE_BOOT_REBUILD env var; v4.5.6 PATH pinning post-fish-gate + sudoers NOPASSWD regex relaxation; v4.5.7 mkinitcpio rollback chmod/chown gating; v4.5.8 _rm_tmp + _is_symlink + _enum_boot_entries helpers.
+Resync note: v5.0.1 fully resyncs against ry-install v5.0.1. Encoded since v4.5.8 (35+ minor releases): v4.5.25 _RY_POST_HOOKS table + _post_hook_for_target + _ry_namespace_cleanup bail wiring + hermetic keepalive child (fish --no-config -c); v4.5.27 _run dash-prefix rejection + _chk_grep grep -wF whole-word + _verify_summary VERIFY_GEN_FAIL + _do_cleanup two-pass tmpfile sweep + 7 verify/install orchestrator splits + _resolve_esp /boot fallback + ping soft-dep + sysctl generator rc=13; v4.5.28 _run / _verify_static_boot / _install_fstab_opts / _preflight_boot_sanity splits; v4.5.29 137 if-blocks → inline X; and Y (LOC 5495→5005); v4.5.31 _verify_static_system 5×_vss_* + _acquire_lock fresh+reclaim split + _vrk_gpu_state 3×_vrkg_* + _msg_print/_msg_nocount/_fail_silent helpers; v4.5.32 _err_loud (preflight errs surface regardless of QUIET); v4.5.33 _redact_argv_elements + _installed_bytes rc 0/1/2 + _PROFILE_USES_NM→_PROFILE_USES_WIFI_BACKEND + _RY_HOME_DIR + _RY_RUN_TIMEOUT_DEFAULT named constants + _grep_kparam + _grep_kv argv-count guard + _configure_services_preset split; v4.5.34 19 oversized orchestrators split (function count 200→239; LOC 5098→4849); v4.5.35 _untrack_tmpfile erase-when-empty (sourced-caller scope leak fix); v4.5.36 tmpfile registration moved before validation + _track_tmpfile + _resolve_systemd_ver helpers + _ir_validate_counts runtime asserts; v4.5.37 ENV_VARS 13→12 (PROTON_NO_WM_DECORATION); v4.5.38 ENV_VARS 12→11 (ENABLE_LAYER_MESA_ANTI_LAG); v4.6.0 minor consolidation; v4.6.1 _ry_show_help hoisted above early-arg loop + EXIT_GEN_NOFN=11 / EXIT_GEN_NOUUID=12; v4.6.2 EXIT_GEN_SYSCTL=13 + sudo/df/mkdir/rmdir hard-deps; v4.6.3 _start_sudo_keepalive child-fish drops -- against fish builtin test (CRITICAL FIX) + _RY_BOOT_TAINTED separated from INSTALL_HAD_ERRORS + _cse_batch_enable ENABLE_OK_START_FAIL marker + keepalive child stderr capture (SUDO_KEEPALIVE_ERR); v4.6.4 nftables dropped from PKGS_ADD (14→13) + nftables.service from EXPECTED_SERVICES (4→3) + PKGS_ADD:13 invariant; v4.6.5 _msg no longer gates VERIFY_* on VERIFY_MODE (real install footer counts) + ERR bumps VERIFY_FAIL + libva-mesa-driver→mesa, lib32-libva-mesa-driver→lib32-mesa + _ntsync_per_kernel_state + _ntsync_check_installed_kernels (advisory) + _rot_pipe_ok pipestatus[1]-only; v4.6.6 _bwg_managed_only auto-ack for SDBOOT_REMOVE_EXISTING=yes (BOOT_WIPE_AUTO_ACK / BOOT_WIPE_AUTO_ACK_DECLINE); v4.6.7 ufw out of PKGS_DEL (8→7) + ufw.service into MASK (10→11); v4.6.8 _resolve_boot_path (cached _RY_BOOT_PATH via bootctl -x) + _pbs_entry_has_valid_kernel BLS Type #1 linux= resolution; v4.6.9 mv -T / mv -Tf atomic write + _reclaim_stale_lock liveness via test -d /proc/$old_pid (replaces kill -0 EPERM≠ESRCH) + _csp_remove_pkgs/_ip_pacman_invoke db.lck retest (PKG_REMOVE_BATCH_FAIL_DBLOCK) + _install_aur_packages skips per-pkg retry when count $AUR_PKGS ≤ 1 + _check_phase_files consumes _installed_bytes rc directly + _install_finalize gates _if_write_wipe_marker on INSTALL_HAD_ERRORS=false; v4.6.10 _ry_install_file user-scope mkdir -p wrapped in umask 0077; v4.6.11 8 read-only pacman -Q*/-T/-Qi gain command prefix + keepalive child drops 2>/dev/null on breaking sudo -n -v; v4.6.12 _reclaim_stale_lock /proc/<pid>/cmdline substring match (defence-in-depth against fish-PID reuse) + MKINITCPIO_HOOKS:11 + MKINITCPIO_MODULES:1 invariants; v4.6.13–.15 README admonition + table trims; v4.6.16 _cleanup_pipe NO LONGER EXITS 141 — sets _RY_OUTPUT_BROKEN, returns; JSONL log canonical + _msg_print/_err_loud/_echo short-circuit on _RY_OUTPUT_BROKEN + _verify_summary uses _msg_nocount (off-by-one fix) + _cg_access_ok / _mkinitcpio_revert drop -- from sudo -n test -f / test -L (coreutils 3-arg form parses as binary-op rc=2); v4.6.17 mkinitcpio-firmware moved from PKGS_ADD to AUR_PKGS (paru is now HARD prereq) + drop unreachable case pipe arm from _teardown + drop 141 SIGPIPE row from help / README signals tables + PKGS_ADD:12 AUR_PKGS:2 invariants + PROFILE_NAME/PROFILE_DESC/_RY_MANAGED_FILE_COUNT hoisted above _ry_show_help; v4.6.18 _ir_precompute_caches one-statement-per-line; v4.6.19 _vsp_pacman_conf explicit `if not test -f` block (broken or-chain fix); v4.6.20 GTR9_PRO BUILT-IN DEFAULTS banner collapsed; v5.0 release milestone (4.6.20 → 5.0; no functional changes); v5.0.1 verbose-comment trims at L210/L2068 (technical signal preserved). Final invariants asserted at runtime via `_ir_validate_counts`: KERNEL_PARAMS:15 MKINITCPIO_HOOKS:11 MKINITCPIO_MODULES:1 LOGIND_IGNORE_KEYS:9 ENV_VARS:11 SYSCTL_VALUES:16 PKGS_ADD:12 PKGS_DEL:7 AUR_PKGS:2 MASK:11. v5.0.1 baselines: function count 246 (was 137), --description 246 (100%), --argument-names 87 (was ~52), LOC 5,029 (was ~5,205), set -l ~464, bare set ~115, set -g ~108, _run wrap ~52. SYSTEM destinations 11 (was 12 — udev rqaffinity rule removed); _RY_MANAGED_FILE_COUNT 15 (was 16). Signal architecture: SIGPIPE retired as exit code 141 (handler now sets _RY_OUTPUT_BROKEN and returns); USR1/USR2/ABRT added (138/140/134) via _cleanup_other.
 
 ───────────────────────────────────────────────────────────────
  SETUP
@@ -307,7 +307,7 @@ for i, line in enumerate(lines, 1):
     echo "=== UNQUOTED TEST ===" && rg -n 'test \$[a-z]' "$F" | rg -v '"' | head -20
   ) > "$D/p10-11.txt" 2>&1; echo "GROUP_C2_EXIT=$?" >> "$D/p10-11.txt" ) &
 
-  # ── GROUP D: P14 v3.1.0–v4.5.8 specifics ──
+  # ── GROUP D: P14 v3.1.0–v5.0.1 specifics ──
   ( set -uo pipefail; (
     echo "=== KVER GLOBALS ===" && rg -n 'KVER|KVER_MAJOR|KVER_MINOR' "$F" | head -20
     echo "=== KVER GATE ORDERING ===" && rg -n '^function _ry_check_kernel_version|^set -g KVER_MAJOR' "$F" | head -5
@@ -645,6 +645,85 @@ print(f'Total: {len(issues)} scope shadow(s)')
     echo "=== V418 BOOT_SANITY PRINT0 COUNT ===" && _py_extract "$F" "_preflight_boot_sanity" | rg -c 'print0.*string split0'
     echo "=== V418 TOTAL PRINT0 STRING_SPLIT0 ===" && rg -n '\-print0 [^|]*\| string split0' "$F" | head -10
     echo "=== V418 TOTAL PRINT0 STRING_SPLIT0 COUNT ===" && rg -c '\-print0 [^|]*\| string split0' "$F"
+    # ── v4.5.25 → v5.0.1 additions ──
+    echo "=== V4525 POST_HOOKS TABLE ===" && rg -n '^set -g _RY_POST_HOOKS' "$F" | head -3
+    echo "=== V4525 POST_HOOK_FOR_TARGET ===" && rg -n '^function _post_hook_for_target' "$F"
+    echo "=== V4525 NAMESPACE_CLEANUP BAIL ===" && rg -n '_ry_namespace_cleanup bail' "$F" | head -10
+    echo "=== V4525 KEEPALIVE NO-CONFIG ===" && rg -n 'fish --no-config -c' "$F" | head -5
+    echo "=== V4525 DEPLOYED_SERVICES ===" && rg -n '_RY_DEPLOYED_SERVICES' "$F" | head -10
+    echo "=== V4527 RUN DASH-PREFIX REJECT ===" && rg -n "BUG: _run called with dash-prefixed argv" "$F" | head -5
+    echo "=== V4527 CHK_GREP -wF ===" && _py_extract "$F" "_chk_grep" | rg -c 'grep -wF'
+    echo "=== V4527 VERIFY_GEN_FAIL ===" && rg -n 'VERIFY_GEN_FAIL' "$F" | head -5
+    echo "=== V4527 RESOLVE_ESP /BOOT FALLBACK ===" && rg -n '^function _resolve_esp' "$F"
+    echo "=== V4527 SYSCTL GENERATOR rc=13 ===" && rg -n 'return \$EXIT_GEN_SYSCTL' "$F" | head -5
+    echo "=== V4528 INSTALL_FSTAB_OPTS SPLIT ===" && rg -n '^function _install_fstab_opts' "$F"
+    echo "=== V4528 PREFLIGHT_BOOT_SANITY SPLIT ===" && rg -oP '^function \K_pbs_\w+' "$F" | sort
+    echo "=== V4528 RUN SPLIT ===" && rg -oP '^function \K_run_\w+' "$F" | sort
+    echo "=== V4529 INLINE AND-OR (X; and Y density) ===" && rg -c '; and ' "$F"
+    echo "=== V4531 VSS HELPERS ===" && rg -oP '^function \K_vss_\w+' "$F" | sort
+    echo "=== V4531 VRKG HELPERS ===" && rg -oP '^function \K_vrkg_\w+' "$F" | sort
+    echo "=== V4531 ACQUIRE_LOCK SPLIT ===" && rg -n '^function _acquire_lock_fresh|^function _reclaim_stale_lock' "$F"
+    echo "=== V4531 MSG HELPERS ===" && rg -n '^function _msg_print|^function _msg_nocount|^function _fail_silent' "$F"
+    echo "=== V4532 ERR_LOUD ===" && rg -n '^function _err_loud' "$F"
+    echo "=== V4533 REDACT_ARGV ===" && rg -n '^function _redact_argv_elements|^function _run_redact_argv' "$F"
+    echo "=== V4533 INSTALLED_BYTES ===" && rg -n '^function _installed_bytes' "$F"
+    echo "=== V4533 PROFILE_USES_WIFI_BACKEND ===" && rg -n '_PROFILE_USES_WIFI_BACKEND|_PROFILE_USES_NM' "$F" | head -10
+    echo "=== V4533 NAMED CONSTS ===" && rg -n '_RY_HOME_DIR|_RY_RUN_TIMEOUT_DEFAULT' "$F" | head -10
+    echo "=== V4533 GREP_KPARAM/GREP_KV ===" && rg -n '^function _grep_kparam|^function _grep_kv' "$F"
+    echo "=== V4534 ORCHESTRATOR SPLITS COUNT ===" && rg -c '^function ' "$F"
+    echo "=== V4536 TRACK_TMPFILE / RESOLVE_SYSTEMD_VER ===" && rg -n '^function _track_tmpfile|^function _resolve_systemd_ver' "$F"
+    echo "=== V4536 IR_VALIDATE_COUNTS RUNTIME ASSERT ===" && rg -n '^function _ir_validate_counts' "$F"
+    echo "=== V4536 IR_VALIDATE_COUNTS INVARIANTS ===" && _py_extract "$F" "_ir_validate_counts" | rg 'KERNEL_PARAMS:|MKINITCPIO_HOOKS:|MKINITCPIO_MODULES:|LOGIND_IGNORE_KEYS:|ENV_VARS:|SYSCTL_VALUES:|PKGS_ADD:|PKGS_DEL:|AUR_PKGS:|MASK:' | head -5
+    echo "=== V461 SHOW_HELP HOIST ===" && rg -n '^function _ry_show_help' "$F"
+    echo "=== V461 EXIT_GEN_NOFN/NOUUID ===" && rg -n 'EXIT_GEN_NOFN|EXIT_GEN_NOUUID' "$F" | head -10
+    echo "=== V462 EXIT_GEN_SYSCTL ===" && rg -n 'EXIT_GEN_SYSCTL' "$F" | head -5
+    echo "=== V462 HARD-DEPS sudo/df/mkdir/rmdir ===" && _py_extract "$F" "_ry_check_deps" | rg 'sudo|df|mkdir|rmdir' | head -10
+    echo "=== V463 KEEPALIVE-CHILD NO-DASH-DASH ===" && rg -n 'sudo -n -v; or break' "$F" | head -5
+    echo "=== V463 BOOT_TAINTED ===" && rg -n '_RY_BOOT_TAINTED' "$F" | head -10
+    echo "=== V463 ENABLE_OK_START_FAIL ===" && rg -n 'ENABLE_OK_START_FAIL' "$F" | head -3
+    echo "=== V463 KEEPALIVE STDERR TMPFILE ===" && rg -n 'SUDO_KEEPALIVE_ERR' "$F" | head -10
+    echo "=== V464 NFTABLES DROPPED (regression — expect 0) ===" && rg -n 'nftables' "$F" | rg -v '#' | head -5
+    echo "=== V464 EXPECTED_SERVICES (expect 3) ===" && rg -n '^set -g EXPECTED_SERVICES' "$F" | head -3
+    echo "=== V465 MSG VERIFY UNGATED ===" && _py_extract "$F" "_msg" | rg -c 'VERIFY_'
+    echo "=== V465 MESA RENAME ===" && rg -n 'libva-mesa-driver' "$F" | rg -v '#|removed|deprecated' | head -3
+    echo "=== V465 NTSYNC PER-KERNEL ===" && rg -n '^function _ntsync_per_kernel_state|^function _ntsync_check_installed_kernels' "$F"
+    echo "=== V466 BOOT_WIPE_AUTO_ACK ===" && rg -n 'BOOT_WIPE_AUTO_ACK|_bwg_managed_only' "$F" | head -10
+    echo "=== V467 UFW IN MASK ===" && rg -n 'ufw\.service' "$F" | head -5
+    echo "=== V468 RESOLVE_BOOT_PATH ===" && rg -n '^function _resolve_boot_path|_RY_BOOT_PATH' "$F" | head -10
+    echo "=== V468 PBS_ENTRY_HAS_VALID_KERNEL ===" && rg -n '^function _pbs_entry_has_valid_kernel' "$F"
+    echo "=== V468 BOOTCTL -X ===" && rg -n 'bootctl -x' "$F" | head -5
+    echo "=== V469 MV -T / -Tf ===" && rg -n 'mv -T |mv -Tf ' "$F" | head -10
+    echo "=== V469 RECLAIM TEST -d /proc ===" && rg -n 'test -d /proc/' "$F" | head -5
+    echo "=== V469 PKG_REMOVE_BATCH_FAIL_DBLOCK ===" && rg -n 'PKG_REMOVE_BATCH_FAIL_DBLOCK' "$F" | head -5
+    echo "=== V469 INSTALLED_BYTES rc 0/1/2 ===" && _py_extract "$F" "_check_phase_files" | rg '_installed_bytes' | head -5
+    echo "=== V469 FINALIZE GATES WIPE_MARKER ===" && _py_extract "$F" "_install_finalize" | rg 'INSTALL_HAD_ERRORS=false|_if_write_wipe_marker' | head -5
+    echo "=== V4610 INSTALL_FILE UMASK 0077 ===" && _py_extract "$F" "_ry_install_file" | rg 'umask 0077' | head -3
+    echo "=== V4611 PACMAN COMMAND PREFIX ===" && rg -c 'command pacman' "$F"
+    echo "=== V4612 RECLAIM CMDLINE MATCH ===" && _py_extract "$F" "_reclaim_stale_lock" | rg 'cmdline|ry-install' | head -5
+    echo "=== V4612 MKINITCPIO HOOKS:11 + MODULES:1 invariants ===" && _py_extract "$F" "_ir_validate_counts" | rg 'MKINITCPIO_HOOKS:11|MKINITCPIO_MODULES:1' | head -3
+    echo "=== V4616 CLEANUP_PIPE NO 141 EXIT ===" && _py_extract "$F" "_cleanup_pipe" | rg -c 'exit 141|return 0|set -g _RY_OUTPUT_BROKEN'
+    echo "=== V4616 CLEANUP_PIPE BODY ===" && _py_extract "$F" "_cleanup_pipe" | head -10
+    echo "=== V4616 OUTPUT_BROKEN SHORT-CIRCUITS ===" && rg -n 'set -q _RY_OUTPUT_BROKEN; and return' "$F" | head -10
+    echo "=== V4616 VERIFY_SUMMARY USES MSG_NOCOUNT ===" && _py_extract "$F" "_verify_summary" | rg '_msg_nocount' | head -5
+    echo "=== V4616 CG_ACCESS_OK NO -- ===" && _py_extract "$F" "_cg_access_ok" | rg 'sudo -n test -f' | head -3
+    echo "=== V4617 AUR_PKGS ===" && rg -n '^set -g AUR_PKGS' "$F" | head -3
+    echo "=== V4617 PARU AS HARD PREREQ ===" && rg -n 'paru ' "$F" | rg -v '#' | head -10
+    echo "=== V4617 TEARDOWN NO PIPE ARM (regression — expect 0) ===" && _py_extract "$F" "_teardown" | rg 'case pipe|case PIPE' | head -3
+    echo "=== V4617 HELP NO 141 ROW (regression — expect 0) ===" && rg -n '141 SIGPIPE|141 signal' "$F" | head -3
+    echo "=== V4617 PROFILE_NAME HOIST ABOVE _ry_show_help ===" && rg -n '^set -g PROFILE_NAME|^function _ry_show_help' "$F" | head -3
+    echo "=== V4619 VSP_PACMAN_CONF EXPLICIT IF ===" && _py_extract "$F" "_vsp_pacman_conf" | rg 'if not test -f /etc/pacman.conf' | head -3
+    echo "=== V501 VERSION ===" && rg -n '^set -g VERSION' "$F" | head -3
+    echo "=== V501 HELP SIGNAL EXITS ===" && _py_extract "$F" "_ry_show_help" | rg '129/130/131|134/138/140' | head -5
+    echo "=== V501 SIGNAL HANDLERS ===" && rg -n -- '--on-signal' "$F" | head -10
+    echo "=== V501 TEARDOWN UNIFIED ===" && rg -n '^function _teardown' "$F"
+    echo "=== V501 CLEANUP_OTHER USR1/USR2/ABRT ===" && rg -nA 3 '^function _cleanup_other' "$F" | head -5
+    echo "=== V501 SYSCTL_VALUES count (expect 16) ===" && rg -nA 18 '^set -g SYSCTL_VALUES' "$F" | rg -c '^[0-9]+-    "'
+    echo "=== V501 SYSTEM_DESTINATIONS count (expect 11) ===" && rg -nA 14 '^set -g SYSTEM_DESTINATIONS' "$F" | sed -n '/set -g SYSTEM_DESTINATIONS/,/set -g USER_DESTINATIONS/p' | rg -c '^[0-9]+-    "/'
+    echo "=== V501 UDEV RQAFFINITY (regression — expect 0) ===" && rg -n 'rqaffinity|99-nvme-rqaffinity' "$F" | head -3
+    echo "=== V501 _RY_MANAGED_FILE_COUNT (expect 15) ===" && rg -n '^set -g _RY_MANAGED_FILE_COUNT' "$F" | head -3
+    echo "=== V501 _RY_MANAGED_FILE_COUNT DRIFT GUARD ===" && rg -n '_RY_MANAGED_FILE_COUNT drift' "$F" | head -3
+    echo "=== V501 RY_INSTALL_ALLOW_PARTIAL_UPGRADE ===" && rg -n 'RY_INSTALL_ALLOW_PARTIAL_UPGRADE' "$F" | head -5
+    echo "=== V501 RY_INSTALL_PKG_REMOVE_CASCADE ===" && rg -n 'RY_INSTALL_PKG_REMOVE_CASCADE' "$F" | head -5
   ) > "$D/p14.txt" 2>&1; echo "GROUP_D_EXIT=$?" >> "$D/p14.txt" ) &
 
   # ── GROUP E: P13 gap analysis (race/error/edge). Independent collection → p13.txt; analysis cross-refs p14.txt for 11 shared patterns. ──
@@ -709,7 +788,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
 
   # Post-wait data guard (D and E collect independently; E's P13 analysis reads p14.txt for 11 shared patterns).
   if [ ! -s "$D/p14.txt" ]; then
-    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v4.5.8 checks will be incomplete" >> "$O"
+    echo "[INFO] p14.txt empty or missing — P14 v3.1.0-v5.0.1 checks will be incomplete" >> "$O"
   fi
   if [ ! -s "$D/p13.txt" ]; then
     echo "[INFO] p13.txt empty or missing — P13 gap analysis checks will be incomplete" >> "$O"
@@ -729,7 +808,7 @@ for cmd in 'rm mv cp chmod chown mkdir'.split():
           p8-9)   phases="P8-P9 (architecture,patterns)" ;;
           p10-11) phases="P10-P11 (docs,testing)" ;;
           p13)    phases="P13 (gap analysis)" ;;
-          p14)    phases="P14 (v3.1.0-v4.5.8 specifics)" ;;
+          p14)    phases="P14 (v3.1.0-v5.0.1 specifics)" ;;
           *)      phases="unknown ($fname)" ;;
         esac
         echo "WARNING: $f has $lines lines, truncating to 500" >&2
@@ -771,7 +850,7 @@ STEP 2: ANALYZE ON DISK
     p8-9.txt   → P8-9   (architecture, patterns)
     p10-11.txt → P10-11 (docs, testing)
     p13.txt    → P13    (gap; also reads p14.txt for FOOTER_RACE, ROTATION_LOCK, LC_ALL, SIGPIPE, BOOT_SANITY)
-    p14.txt    → P14    (v3.1.0-v4.5.8 specifics)
+    p14.txt    → P14    (v3.1.0-v5.0.1 specifics)
     P15 deep checks use all files above.
 
   Missing data:
@@ -784,7 +863,7 @@ STEP 2: ANALYZE ON DISK
   Report to context ONLY:
     "PASS 1 complete. N findings (N CRIT, N HIGH, N MED, N LOW, N INFO).
      Phases 1-11, 13-15 analyzed. Proceeding to PASS 2.
-     Per-phase tally: P1:N P2:N ... P15:N (must sum to 363)."
+     Per-phase tally: P1:N P2:N ... P15:N (must sum to 374)."
 
   Never paste raw rg output to context.
 
@@ -849,7 +928,12 @@ STEP 2: ANALYZE ON DISK
        [ ] 25. 1: runtime errors; 3: preflight; 4: boot-critical; 5: lock
        [ ] 26. 2: usage errors; 10: drift (--check)
        [ ] 27. Signal exits: 129 SIGHUP (128+1), 130 SIGINT (128+2),
-               131 SIGQUIT (128+3), 141 SIGPIPE (128+13), 143 SIGTERM (128+15)
+               131 SIGQUIT (128+3), 134 SIGABRT (128+6), 138 SIGUSR1 (128+10),
+               140 SIGUSR2 (128+12), 143 SIGTERM (128+15).
+               NOTE: 141 SIGPIPE retired as exit code in v4.6.16 — _cleanup_pipe
+               sets _RY_OUTPUT_BROKEN and returns; JSONL log is canonical.
+               v4.6.17 dropped the unreachable `case pipe` arm from _teardown
+               and the "141 SIGPIPE" row from help / README signals tables.
        [ ] 28. Functions use return not exit; no bare exit; no exit inside functions
 
   3.2  STATUS CAPTURE
@@ -857,10 +941,18 @@ STEP 2: ANALYZE ON DISK
        [ ] 30. $pipestatus used for pipes
 
   3.3  SIGNAL HANDLERS
-       [ ] 31. INT, TERM, HUP, QUIT, PIPE, fish_exit handlers present
-               (_cleanup --on-signal INT/TERM/HUP/QUIT; _cleanup_pipe --on-signal PIPE;
-               _cleanup_on_exit --on-event fish_exit; _progress_on_winch --on-signal WINCH)
-       [ ] 32. PIPE handler: _cleanup_pipe, exit 141, no stderr on broken pipe
+       [ ] 31. INT, TERM, HUP, QUIT, USR1, USR2, ABRT, PIPE, fish_exit handlers present
+               (_cleanup --on-signal INT/TERM/HUP/QUIT;
+                _cleanup_other --on-signal USR1/USR2/ABRT (delegates to _cleanup);
+                _cleanup_pipe --on-signal PIPE (NON-FATAL since v4.6.16 — sets _RY_OUTPUT_BROKEN, returns);
+                _cleanup_on_exit --on-event fish_exit;
+                _progress_on_winch --on-signal WINCH).
+                _teardown is the unified cleanup orchestrator called from all signal/exit paths.
+       [ ] 32. PIPE handler: _cleanup_pipe sets _RY_OUTPUT_BROKEN=true and returns 0
+               (v4.6.16 inversion — was: exit 141). _msg_print / _err_loud / _echo
+               short-circuit on _RY_OUTPUT_BROKEN to avoid EPIPE re-entry. JSONL log
+               remains canonical when stderr/stdout consumer closes. Regression detector:
+               rg 'exit 141' inside _cleanup_pipe body → 0 hits.
        [ ] 33. Handlers don't mask exit code
 
   3.4  CLEANUP GUARANTEE
@@ -952,10 +1044,12 @@ STEP 2: ANALYZE ON DISK
 
   6.4  MKINITCPIO
        [ ] 78. MODULES=() HOOKS=() COMPRESSION="" format correct
-       [ ] 79. Hook order (11 hooks, v4.5.8 baseline):
+       [ ] 79. Hook order (11 hooks, v5.0.1 baseline; runtime-asserted via
+               `_ir_validate_counts` invariant `MKINITCPIO_HOOKS:11`):
                base → systemd → autodetect → microcode → modconf → kms →
                keyboard → sd-vconsole → block → filesystems → fsck.
                No `resume` hook — sleep/hibernate targets masked.
+               MKINITCPIO_MODULES is single-element [amdgpu] (invariant `:1`).
        [ ] 80. Modules validated via modprobe -n
 
   6.5  MODPROBE
@@ -1000,18 +1094,23 @@ STEP 2: ANALYZE ON DISK
   6.14 SYSCTL.D (v3.2.0)
        [ ] 99. Format: key = value, comment header refs CachyOS vendor; no overlap;
                 priority-99 override note (v3.45.0); string split -m1 '=' (v3.46.0)
-       [ ] 100. SYSCTL_VALUES 21 entries (v4.1.10 expanded 19→21; current count
-                verified line-by-line in source set -g SYSCTL_VALUES block):
+       [ ] 100. SYSCTL_VALUES 16 entries (history: pre-v4.0.0 21 → v4.0.0 19 →
+                v4.1.10 21 → v4.6.x reduced to 16; current count asserted at runtime
+                via `_ir_validate_counts` invariant `SYSCTL_VALUES:16`):
                 default_qdisc=fq, netdev_max_backlog=16384, rmem_max=134217728,
                 wmem_max=134217728, tcp_congestion_control=bbr, tcp_fastopen=3,
                 tcp_mtu_probing=1, tcp_notsent_lowat=131072, tcp_rmem,
                 tcp_slow_start_after_idle=0, tcp_wmem, vm.max_map_count=2147483642,
                 vm.watermark_boost_factor=0, fs.protected_fifos=2,
-                fs.protected_regular=2, vm.compaction_proactiveness=0,
-                busy_read=50, busy_poll=50, netdev_budget=600,
-                kernel.split_lock_mitigate=0, vm.swappiness=100.
+                fs.protected_regular=2, vm.compaction_proactiveness=0.
                 Removed v4.0.0: inotify.max_user_watches, somaxconn,
                 unprivileged_bpf_disabled, page_lock_unfairness.
+                Removed in v4.6.x window (5 entries): busy_read=50, busy_poll=50,
+                netdev_budget=600, kernel.split_lock_mitigate=0, vm.swappiness=100
+                — all retired as the script narrowed targeting to linux-cachyos
+                whose vendor 70-cachyos-settings.conf already covers the busy-poll
+                tuning; split_lock_mitigate moved to KERNEL_PARAMS as
+                `split_lock_detect=off`; vm.swappiness rolled back to kernel default.
 
 ─── Phase 7: Cross-References & Consistency (14 checks) ──────
 
@@ -1020,16 +1119,27 @@ STEP 2: ANALYZE ON DISK
        [ ] 102. Changelog entry exists; lint verifies auto
 
   7.2  FILE COUNTS
-       [ ] 103. SYSTEM count=12, _ry_get_file_content system cases=12
-                (includes /etc/drirc, /etc/sysctl.d/99-cachyos-sysctl.conf,
-                /etc/udev/rules.d/99-nvme-rqaffinity.rules,
-                /etc/systemd/coredump.conf.d/99-cachyos-coredump.conf)
+       [ ] 103. SYSTEM count=11, _ry_get_file_content system cases=11
+                (loader.conf, kernel/cmdline, sdboot-manage.conf, mkinitcpio.conf,
+                resolved.conf.d, logind.conf.d, coredump.conf.d, iwd/main.conf,
+                NetworkManager/conf.d, /etc/drirc, sysctl.d/99-cachyos-sysctl.conf).
+                udev rqaffinity rule (/etc/udev/rules.d/99-nvme-rqaffinity.rules) was
+                removed earlier in the v4.5.x line and is NOT in SYSTEM_DESTINATIONS;
+                regression check: rg 'rqaffinity|99-nvme-rqaffinity' → 0 hits.
        [ ] 104. USER count=3, SERVICE count=1, _ry_get_file_content cases match;
-                _RY_MANAGED_FILE_COUNT=16 (renamed v3.51.12 from _CASE_COUNT)
+                _RY_MANAGED_FILE_COUNT=15 declared at script L38 and runtime-asserted
+                against `(count $SYSTEM_DESTINATIONS $USER_DESTINATIONS $SERVICE_DESTINATIONS)`
+                immediately after destination-array declarations (L695-696).
+                Drift triggers `[ERR] _RY_MANAGED_FILE_COUNT drift: declared=N computed=M`
+                via `_ry_exit $EXIT_PREFLIGHT`. Hand-synced (v5.0.1 reverted the v4.5.4
+                `(count …)` interpolation in favour of a literal `15` with runtime guard).
        [ ] 105. Progress steps = 6 (Preflight/Packages/Configuration/Services/Boot/Finalize);
-                PROGRESS_TOTAL = count $PROGRESS_STEPS
-       [ ] 106. README count=16 total; MANAGED_FILE_COUNT variable
-                matches _RY_MANAGED_FILE_COUNT compile-time constant.
+                phase labels passed inline at each `_progress <phase>` call site.
+                PROGRESS_STEPS / PROGRESS_TOTAL arrays retired v4.1.9.
+       [ ] 106. README count=15 total; managed-files table reflects the same 11+3+1
+                breakdown. _RY_MANAGED_FILE_COUNT literal in source must match the
+                README total; runtime drift guard at L695-696 catches array-vs-constant
+                desync; doc-vs-source drift requires manual cross-check.
 
   7.3  PARAMETER CROSS-REFS
        [ ] 107. modprobe.d blacklist-only (regression)
@@ -1050,9 +1160,17 @@ STEP 2: ANALYZE ON DISK
                 $EXIT_USAGE`. No per-flag handler. Regression: must NOT add
                 a CLI-flag section to README under the same header — would
                 alias the env-var section.
-       [ ] 113. Exit codes (0,1,2,3,4,5,10,129,130,131,141,143) in both
-                --help and README. Code 11 (EXIT_LINT) retired v3.48.20 —
-                regression: must NOT appear in either.
+       [ ] 113. Exit codes in both --help and README:
+                  0 ok · 1 non-critical · 2 usage · 3 preflight · 4 boot-critical ·
+                  5 lock · 10 drift · 129/130/131/143 (HUP/INT/QUIT/TERM) ·
+                  134/138/140 (ABRT/USR1/USR2).
+                Retired:
+                  - 141 SIGPIPE (v4.6.16/.17 — _cleanup_pipe non-fatal; row dropped
+                    from help text + README); regression: rg '141 SIGPIPE|141 signal' → 0.
+                  - Code 11 EXIT_LINT (v3.48.20 — slot reused as EXIT_GEN_NOFN per
+                    v4.6.1; EXIT_GEN_NOFN/NOUUID/SYSCTL=11/12/13 are INTERNAL-ONLY
+                    sentinels squashed to EXIT_PREFLIGHT at consumer site, never
+                    surfaced to the user; regression: rg 'EXIT_LINT' → 0).
        [ ] 114. Prerequisites listed; mode cross-refs
 
 ─── Phase 8: Function Architecture (19 checks) ───────────────
@@ -1062,9 +1180,18 @@ STEP 2: ANALYZE ON DISK
        [ ] 116. Error messages show counts; return 1 on error
 
   8.2  ATOMIC FILE OPS
-       [ ] 117. Write to tmp first
-       [ ] 118. Perms before mv; same-fs mv
-       [ ] 119. Symlink detection; owner/group correct
+       [ ] 117. Write to tmp first; central helper `_atomic_write_file` (v4.5.8
+                family) handles validate-parent → write → chmod → mv with sudo-aware
+                paths and `_rm_tmp` cleanup on every failure branch.
+       [ ] 118. Perms before mv; same-fs mv. ALL atomic-rename sites use `mv -T` /
+                `mv -Tf` (v4.6.9) to refuse target-as-directory: _atomic_write_file,
+                _mkinitcpio_revert, _fstab_atomic_replace, _if_write_wipe_marker,
+                _acquire_lock_fresh. Regression: rg 'mv --' inside atomic-write
+                helpers → 0; rg 'mv -T |mv -Tf ' → ≥4 hits.
+       [ ] 119. Symlink detection (`_is_symlink` helper, sudo-aware probe);
+                owner/group validated via `_awf_validate_parent`; _ry_install_file
+                user-scope `mkdir -p` wrapped in `umask 0077` (v4.6.10) so
+                intermediate dirs are 0700 even under USERGROUPS_ENAB (umask 002).
 
   8.3  IDEMPOTENCY
        [ ] 120. Re-run identical; diff-before-write skip
@@ -1077,11 +1204,18 @@ STEP 2: ANALYZE ON DISK
        [ ] 125. _json_str escaping
 
   8.5  LOCK FILE
-       [ ] 126. Prevents concurrent; mkdir-only (since v2.8.2)
-       [ ] 127. Stale reclaim (kill -0 + find + rmdir); cleaned all paths
-       [ ] 128. PID in lock dir
+       [ ] 126. Prevents concurrent; mkdir-only (since v2.8.2). _acquire_lock split
+                into `_acquire_lock_fresh` + `_reclaim_stale_lock` (v4.5.31).
+       [ ] 127. Stale reclaim: liveness via `test -d /proc/$old_pid` (v4.6.9 —
+                owner-independent; replaces `kill -0` whose EPERM≠ESRCH conflated
+                "process exists, different owner" with "process gone"). Defence-
+                in-depth (v4.6.12): substring-match "ry-install" against
+                `/proc/<pid>/cmdline` before refusing reclaim — closes the
+                fish-PID-reuse window where an unrelated fish process inherits
+                the stale lock-owner PID. Cleaned on every exit path.
+       [ ] 128. PID written inside locked subshell (v3.48.16) before flock release.
        [ ] 129. LOCK METHOD: flock used for atomic stale-lock reclaim (v3.6.3);
-               exec 9 and _LOCK_METHOD removed. rg 'exec 9|_LOCK_METHOD' → 0 hits
+                `exec 9` and `_LOCK_METHOD` removed. rg 'exec 9|_LOCK_METHOD' → 0 hits.
 
   8.6  INSTALL_FILES WRAPPER
        [ ] 133. Argparse tmp via mktemp; cleaned on both success AND error
@@ -1156,7 +1290,7 @@ STEP 2: ANALYZE ON DISK
 
   NOTE: Check numbers are non-sequential across phases. Phase order
   follows execution priority (P13 gap analysis before P14 specifics).
-  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-384,
+  Check ranges: P1-11 → #1-129,133-167, P13 → #234-238, P14 → #171-214,254-394,
   P15 → #215-233, P12 → #239-249. Checks 168-170 retired in v4.0.0 audit
   prompt (rollback/backup/--dry-run features removed from ry-install v3.5.0–v4.1.0).
   Checks 334-367 added in v4.0.0 audit prompt covering ry-install v3.47.0–v4.1.3.
@@ -1168,6 +1302,12 @@ STEP 2: ANALYZE ON DISK
   check numbers; existing checks rebaselined for v4.1.9-v4.5.8 deltas
   including PROGRESS_STEPS removal, profile-system removal, helper retirements,
   fish version gate raise, and runtime-derived _RY_MANAGED_FILE_COUNT).
+  Checks 385-394 added in v5.0.1 audit prompt covering ry-install v4.5.25–v5.0.1
+  (POST_HOOKS dispatch table, _ir_validate_counts runtime asserts, _RY_BOOT_TAINTED
+  separation, _bwg_managed_only auto-ack, _resolve_boot_path/_RY_BOOT_PATH cache,
+  _RY_OUTPUT_BROKEN EPIPE guard, AUR_PKGS + paru hard-prereq, _verify_summary
+  off-by-one fix, _reclaim_stale_lock cmdline defence, new env-var runtime gates).
+  Total checks: 385 (374 static + 11 runtime).
 
 ─── Phase 13: Gap Analysis (5 checks) ────────────────────────
 
@@ -1186,7 +1326,7 @@ STEP 2: ANALYZE ON DISK
        [ ] 238. mkdir + flock reclaim (v3.6.3), stale reclaim with --, verify_pid present
 
 
-─── Phase 14: v3.1.0–v4.5.8 Specifics (176 checks) ───────────
+─── Phase 14: v3.1.0–v5.0.1 Specifics (186 checks) ───────────
 
   14.1 KVER GLOBALS (v3.1.0)
        [ ] 171. KVER, KVER_MAJOR, KVER_MINOR initialized at top level
@@ -1254,7 +1394,7 @@ STEP 2: ANALYZE ON DISK
   14.6 AUDIT FIXES (v3.1.1–v3.2.10)
        [ ] 183. _install_finalize returns 1 when INSTALL_HAD_ERRORS=true.
        [ ] 184. cat -- terminators in _run capture paths.
-       [ ] 185. --description + comment coverage: function count = 137 =
+       [ ] 185. --description + comment coverage: function count = 246 =
                description count (100% --description coverage; verified via
                `rg -c '^function ' == rg -c -- '--description'`). Section
                markers: 2 top-level `# UPPERCASE LABEL` blocks
@@ -1263,6 +1403,10 @@ STEP 2: ANALYZE ON DISK
                profile system v4.5.0; CLI ARGUMENT PARSING AND DISPATCH
                banner absorbed into trailing dispatch block (no banner).
                Box-drawing `# ── X ──` style from v3.2.6 era retired.
+               GTR9_PRO BUILT-IN DEFAULTS banner collapsed to single-line
+               (v4.6.20). Function count drove from 137 (v4.5.8) to 200
+               (v4.5.34 split intermediate) to 239 (post-v4.5.34) to
+               246 (v5.0.1 — additional v4.6.x splits).
 
   14.7 ORPHAN LOG + RACE FIXES (v3.2.2–v3.2.3)
        [ ] 186. Orphan log cleanup: every exit 2 preceded by LOG_FILE guard.
@@ -1273,9 +1417,18 @@ STEP 2: ANALYZE ON DISK
        [ ] 188. LC_ALL=C on log rotation sort.
 
   14.8 SIGPIPE + BOOT SAFETY (v3.2.5)
-       [ ] 189. _cleanup_pipe: --on-signal PIPE, exit 141, skips stderr,
-               writes JSONL footer, calls _do_cleanup. _ry_show_help +
-               fish_exit handler recognize 141.
+       [ ] 189. _cleanup_pipe (v4.6.16 NON-FATAL inversion): --on-signal PIPE,
+               sets `_RY_OUTPUT_BROKEN=true`, logs `SIGPIPE_RECEIVED: stderr/stdout
+               consumer closed; continuing with JSONL log only`, returns 0.
+               Does NOT exit 141, does NOT call _do_cleanup, does NOT write
+               JSONL footer. _msg_print / _err_loud / _echo short-circuit on
+               `set -q _RY_OUTPUT_BROKEN; and return 0` to avoid EPIPE re-entry.
+               JSONL log is canonical. _ry_show_help and fish_exit handler do
+               NOT enumerate 141 (v4.6.17 dropped the row from help/README).
+               Regression checks:
+                 _py_extract _cleanup_pipe | rg 'exit 141' → 0 hits.
+                 _py_extract _cleanup_pipe | rg 'set -g _RY_OUTPUT_BROKEN' → 1 hit.
+                 rg 'set -q _RY_OUTPUT_BROKEN; and return' source-wide → ≥3 hits.
        [ ] 190. _validate_kernel_params: cmdline param→CONFIG_ map,
                reads /proc/config.gz, graceful skip if unavailable.
                Called from _ry_verify_runtime.
@@ -1300,24 +1453,32 @@ STEP 2: ANALYZE ON DISK
                 is unadorned uppercase capsule comments. PROFILE LOADER
                 banner retired with v4.5.0 profile-system removal.
                 rg '^# [A-Z][A-Z ,]{5,}$' → 2.
-       [ ] 196. Function comment coverage: all 137 functions carry
-                --description (100%; v4.5.8 baseline). A free-form `# ...`
+       [ ] 196. Function comment coverage: all 246 functions carry
+                --description (100%; v5.0.1 baseline). A free-form `# ...`
                 comment within 2 lines above the function header is
                 conventional but not universal. Missing-comment exceptions
                 are limited to trivial one-liner helpers whose --description
                 is self-explanatory.
-       [ ] 197. `command` prefix on ≥100 coreutils calls (v4.5.8 baseline ~122).
+       [ ] 197. `command` prefix on ≥80 coreutils calls (v5.0.1 baseline ~95
+                across rm/mv/chmod/chown/mkdir/cat/sed/grep/awk/find/pacman/sleep/stat).
                 No bare coreutils outside sudo / message-function context.
-       [ ] 198. --argument-names on ≥20 functions (v4.5.8 baseline ~52).
+                v4.6.11 added `command` prefix to 8 read-only `pacman -Q*` /
+                `-T` / `-Qi` invocations for shadow-immunity against autoloaded
+                `pacman.fish`; rg 'command pacman' → ≥8 hits.
+       [ ] 198. --argument-names on ≥40 functions (v5.0.1 baseline ~87 — up
+                substantially from ~52 due to 19+ helper extractions in
+                v4.5.31, v4.5.34, and v4.6.x splits, all of which use
+                --argument-names per the prevailing convention).
 
   14.11 SCOPING + ROLLBACK (v3.2.9–v3.2.10)
-       [ ] 199. In-function set -g: ~117 (intentional VERIFY_*/flag globals;
-                v4.5.8 baseline 117). Cross-block bare set: ~151
-                (v4.5.8 baseline 151). v4.5.0 profile-system removal is the
-                single largest contributor to the v4.1.8→v4.5.8 drop; account
-                for it explicitly when interpreting trend lines. Ratios
-                drift ±15% release-to-release; absolute counts are trend
-                indicators, not pass gates.
+       [ ] 199. In-function set -g: ~108 (intentional VERIFY_*/flag globals;
+                v5.0.1 baseline 108 — down from v4.5.8 ~117 reflecting helper
+                extraction making more state explicit-locals). Cross-block bare
+                set: ~115 (v5.0.1 baseline 115). The v4.5.34 19-orchestrator
+                split + v4.6.x splits drove additional reductions on top of
+                the v4.5.0 profile-system removal. Ratios drift ±15%
+                release-to-release; absolute counts are trend indicators,
+                not pass gates.
 
   14.12 LOGGING + VERIFICATION (v3.2.8–v3.2.10)
        [ ] 200. _log section markers on surviving modes. v4.5.8 format:
@@ -1343,10 +1504,11 @@ STEP 2: ANALYZE ON DISK
                Not stored as globals beyond pipeline.
        [ ] 204. Unconditional log rotation for all modes. Scope invariants:
                 set -l for true locals, bare set for cross-block updaters,
-                set -g only for intentional globals. v4.5.8 baselines:
-                ~379 set -l, ~151 bare set, ~117 in-function set -g.
-                _run wraps ≥40 commands for logging (v4.5.8 baseline ~48;
-                profile-system removal v4.5.0 dropped this from ~60).
+                set -g only for intentional globals. v5.0.1 baselines:
+                ~464 set -l, ~115 bare set, ~108 in-function set -g.
+                _run wraps ≥40 commands for logging (v5.0.1 baseline ~52
+                — back up from v4.5.8 ~48 as v4.6.x added wrappers in
+                _install_aur_packages, _csp_remove_pkgs, _ip_pacman_invoke).
                 These are drift indicators (±15% normal between releases),
                 not pass gates — sudden large deltas warrant investigation.
 
@@ -1389,14 +1551,19 @@ STEP 2: ANALYZE ON DISK
                 examples from v3.3.x audit era retired with those modes
                 (v3.48.20 + v4.1.0); _install_collect_wifi inlined into
                 preflight path.
-       [ ] 213. v4.5.8 scope baselines: in-function set -g ~117
-                (intentional VERIFY_*/flag globals). Bare set ~151
-                (cross-block updaters). set -l ~379 (true locals).
-                v4.5.0 profile-system removal accounts for the bulk of
-                the v4.1.8→v4.5.8 drop (set -l ~590→379, bare set ~193→151,
-                set -g ~130→117). Ratios matter more than absolute counts
-                (see check 204). Regression signal: set -g count rising
-                sharply without new global introductions in changelog.
+       [ ] 213. v5.0.1 scope baselines: in-function set -g ~108
+                (intentional VERIFY_*/flag globals). Bare set ~115
+                (cross-block updaters). set -l ~464 (true locals — RISEN
+                significantly from v4.5.8 ~379 due to v4.5.34 19-orchestrator
+                split + v4.6.x splits making more state explicit-locals).
+                Driver narrative: v4.5.0 profile-system removal drove the
+                v4.1.8→v4.5.8 drop (set -l ~590→379, bare set ~193→151,
+                set -g ~130→117); v4.5.31/v4.5.34/v4.6.x helper extractions
+                drove the v4.5.8→v5.0.1 redistribution (more set -l from
+                helper-local state; bare set ~151→115; set -g ~117→108).
+                Ratios matter more than absolute counts (see check 204).
+                Regression signal: set -g count rising sharply without new
+                global introductions in changelog.
        [ ] 214. _analyze_log removed: 0 hits. _emit_step_time helper also
                removed in later versions (rg → 0); step timing now logged
                inline at relevant phase boundaries.
@@ -1612,10 +1779,13 @@ STEP 2: ANALYZE ON DISK
                /etc/fstab, adds noatime,lazytime to ext4 entries via sed,
                writes to tmpfile, validates with findmnt --verify, then mv.
                No data loss on failure. Idempotent (skip if already present).
-       [ ] 306. SYSCTL_VALUES profile global: 21 entries cross-ref with
-               99-cachyos-sysctl.conf content in _ry_get_file_content.
-               Runtime verify reads /proc/sys/ for each. Whitespace
-               normalization for multi-value keys (tcp_rmem, tcp_wmem).
+       [ ] 306. SYSCTL_VALUES global: 16 entries cross-ref with
+               99-cachyos-sysctl.conf content in _ry_get_file_content / _content_*
+               sysctl helper. Runtime verify iterates the array (`for entry in
+               $SYSCTL_VALUES` at ≥3 sites: validate, verify-static, verify-runtime).
+               Whitespace normalization for multi-value keys (tcp_rmem, tcp_wmem)
+               via `string split -m1 '='`. Count enforced at preflight via
+               `_ir_validate_counts` invariant `SYSCTL_VALUES:16`.
        [ ] 307. irqbalance.service RETIRED from MASK (v4.0.0): originally
                added to MASK in v3.10.0-era to prevent cache-thrashing with
                threadirqs, removed v4.0.0 after upstream kernel irq affinity
@@ -1764,28 +1934,49 @@ STEP 2: ANALYZE ON DISK
        [ ] 344. SYSCTL_VALUES history: pre-v4.0.0 21 entries → v4.0.0 reduced
                 to 19 (removed somaxconn=8192, unprivileged_bpf_disabled=1,
                 inotify.max_user_watches, page_lock_unfairness; added
-                tcp_notsent_lowat=131072) → v4.1.10 expanded to 21
-                (current). Audit-time count: 21.
+                tcp_notsent_lowat=131072) → v4.1.10 expanded to 21 → v4.6.x
+                reduced to 16 (removed busy_read=50, busy_poll=50, netdev_budget=600,
+                kernel.split_lock_mitigate=0, vm.swappiness=100). Audit-time count: 16.
                 rg 'somaxconn|unprivileged_bpf|max_user_watches|page_lock_unfairness' → 0 functional.
-       [ ] 345. PKGS_ADD 15→14 (v4.0.0): added nftables; removed
-                vulkan-radeon + lib32-vulkan-radeon (chwd auto-installs).
-                EXPECTED_SERVICES 3→4: added nftables.service.
+                rg 'busy_read|busy_poll|netdev_budget|split_lock_mitigate|vm\.swappiness' → 0 functional in SYSCTL_VALUES context.
+       [ ] 345. PKGS_ADD history: v4.0.0 15→14 (added nftables; removed vulkan-radeon
+                + lib32-vulkan-radeon — chwd auto-installs); v4.6.4 14→13 (nftables
+                dropped); v4.6.5 libva-mesa-driver→mesa, lib32-libva-mesa-driver→
+                lib32-mesa (upstream removed standalone names around mesa 24.2.7);
+                v4.6.17 13→12 (mkinitcpio-firmware moved to AUR_PKGS).
+                Final v5.0.1 count: PKGS_ADD:12, AUR_PKGS:2 (mt76-mt7925-dkms,
+                mkinitcpio-firmware). EXPECTED_SERVICES history: v4.0.0 3→4
+                (added nftables.service); v4.6.4 4→3 (nftables.service dropped).
+                Final v5.0.1 EXPECTED_SERVICES: cpupower-epp.service, fstrim.timer,
+                NetworkManager.service. EXPECTED_VULKAN_PKGS retained as optional
+                global (v3.48.20 onward).
+                rg 'nftables' → 0 functional hits (regression);
+                rg 'libva-mesa-driver' → 0 functional hits (regression).
                 EXPECTED_VULKAN_PKGS now optional global (v3.48.20).
-       [ ] 346. nftables firewall baseline (v4.0.0): nftables in PKGS_ADD,
-                nftables.service in EXPECTED_SERVICES, new dep on nftables.
-                Restores firewall coverage after ufw removal.
-                rg 'nftables' → ≥3 hits (pkg + svc + verify).
-       [ ] 347. systemd-coredump.socket added to MASK (v4.0.0): complements
+       [ ] 346. nftables firewall baseline RETIRED (v4.6.4): originally added in
+                v4.0.0 as nftables in PKGS_ADD + nftables.service in EXPECTED_SERVICES;
+                removed v4.6.4. Firewall coverage now expected from CachyOS vendor
+                / user choice; ry-install does not enforce a firewall package.
+                Retained as regression detector only — see check 345 final counts.
+                rg 'nftables' → 0 functional hits (regression).
+       [ ] 347. systemd-coredump.socket in MASK (v4.0.0+): complements
                 Storage=none by eliminating spawn-and-discard overhead on
-                Wine/Proton crashes. MASK count=10 total (v4.1.3).
-                rg 'systemd-coredump\.socket' → ≥2 hits (MASK + verify).
+                Wine/Proton crashes. MASK count=11 total (v5.0.1; ufw.service
+                added v4.6.7 brought it from 10 to 11). _ir_validate_counts
+                invariant `MASK:11`. rg 'systemd-coredump\.socket' → ≥2 hits
+                (MASK + verify).
        [ ] 348. irqbalance.service removed from MASK (v4.0.0): check 307
                 inverts — MASK must NOT contain irqbalance; threadirqs
                 kernel param stays. rg 'irqbalance' in MASK context → 0.
-       [ ] 349. RADV env rework (v4.0.0): RADV_EXPERIMENTAL="transfer_queue,hic",
-                RADV_PERFTEST="sam,nircache". drirc Mesa min ≥22.3 (was ≥25.0).
-                ENV_VARS count=12; deprecated DO-NOT-REINTRODUCE list documented
-                in README (DXVK_ASYNC, DXVK_FRAME_RATE, WINE_FULLSCREEN_FSR).
+       [ ] 349. RADV env rework (v4.0.0+): RADV_EXPERIMENTAL="transfer_queue"
+                (v5.0.1 — `,hic` dropped earlier in v4.6.x line),
+                RADV_PERFTEST="sam,nircache". drirc Mesa min ≥22.3.
+                ENV_VARS count=11 in v5.0.1 (history: v4.0.0 ENV_VARS:12 →
+                v4.1.11 13 → v4.5.37 12 (PROTON_NO_WM_DECORATION dropped) →
+                v4.5.38 11 (ENABLE_LAYER_MESA_ANTI_LAG dropped). _ir_validate_counts
+                invariant `ENV_VARS:11`. Deprecated DO-NOT-REINTRODUCE list documented
+                in README per-game-overrides section (DXVK_ASYNC, DXVK_FRAME_RATE,
+                WINE_FULLSCREEN_FSR, PROTON_NO_WM_DECORATION, ENABLE_LAYER_MESA_ANTI_LAG).
        [ ] 350. RESOLVED_MDNS=resolve (v4.0.0, was `no`): fixes .local
                 resolution under COSMIC DE. Profile global propagates to
                 99-cachyos-resolved.conf via `MulticastDNS=$RESOLVED_MDNS`
@@ -2083,6 +2274,146 @@ STEP 2: ANALYZE ON DISK
                   _py_extract _preflight_boot_sanity | rg -c 'print0.*string split0' → 3 hits.
                   rg -c '\-print0 [^|]*\| string split0' → 4 hits (1 pre-existing NM + 3 new boot-sanity).
 
+
+  14.33 v4.5.25–v5.0.1 ARCHITECTURAL EXPANSION (10 checks)
+       [ ] 385. _RY_POST_HOOKS dispatch table + _post_hook_for_target helper
+                (v4.5.25): replaces inline switch-case dispatch in
+                _ry_install_file post-deploy with a top-level `set -g _RY_POST_HOOKS`
+                table of glob|tag pairs (e.g. `"/boot/*|boot"`,
+                `"*.service|service"`, `"*/sysctl.d/*|sysctl"`).
+                _post_hook_for_target single-iterates the table and emits the
+                tag on first glob match. Single iteration site reduces
+                duplication and keeps post-hook routing in one place.
+                Regression checks:
+                  rg '^set -g _RY_POST_HOOKS' → 1 hit.
+                  rg '^function _post_hook_for_target' → 1 hit.
+                  rg '_post_hook_for_target' → ≥3 hits (definition + call sites).
+                  Inline `switch ... case "/boot/*"` in _ry_install_file post-deploy → 0 hits.
+       [ ] 386. _ir_validate_counts runtime invariants (v4.5.36 promoted from
+                comment-only): asserts the canonical count set at `_init_runtime`
+                preflight time before any deploy work. Drift triggers
+                `_err_loud "<NAME> count drift: got=N expected=M — README/script
+                desync, refuse to deploy"` and `_pre_dispatch_exit $EXIT_PREFLIGHT`.
+                Invariant set (v5.0.1): KERNEL_PARAMS:15 MKINITCPIO_HOOKS:11
+                MKINITCPIO_MODULES:1 LOGIND_IGNORE_KEYS:9 ENV_VARS:11
+                SYSCTL_VALUES:16 PKGS_ADD:12 PKGS_DEL:7 AUR_PKGS:2 MASK:11.
+                Regression checks:
+                  rg '^function _ir_validate_counts' → 1 hit.
+                  _py_extract _ir_validate_counts | rg 'KERNEL_PARAMS:15' → 1 hit.
+                  _py_extract _ir_validate_counts | rg 'AUR_PKGS:2|MASK:11|ENV_VARS:11|SYSCTL_VALUES:16|PKGS_ADD:12|PKGS_DEL:7' → 6 hits.
+                  Counts must match actual array sizes (`(count $NAME)` ≡ declared invariant).
+       [ ] 387. _RY_BOOT_TAINTED separated from INSTALL_HAD_ERRORS (v4.6.3):
+                fine-grained gate distinguishing "package state or boot-critical
+                config drift requires initramfs rebuild" (_RY_BOOT_TAINTED) from
+                "any install pipeline error" (INSTALL_HAD_ERRORS). Service-runtime
+                failures bump INSTALL_HAD_ERRORS but NOT _RY_BOOT_TAINTED — they
+                don't require kernel/initramfs rework. _install_rebuild_boot gates
+                solely on _RY_BOOT_TAINTED (with RY_INSTALL_FORCE_BOOT_REBUILD=1
+                bypass for recovery). README "Initramfs rebuild" section documents
+                the boot-critical config set: /etc/mkinitcpio.conf, /etc/kernel/cmdline,
+                /boot/loader/loader.conf, /etc/sdboot-manage.conf.
+                Regression checks:
+                  rg '^set -g _RY_BOOT_TAINTED' → 1 hit (init).
+                  rg '_RY_BOOT_TAINTED' source-wide → ≥8 hits.
+                  _py_extract _install_rebuild_boot | rg '_RY_BOOT_TAINTED' → ≥1 hit.
+                  Setting INSTALL_HAD_ERRORS without setting _RY_BOOT_TAINTED on
+                  boot-critical config error sites is a regression.
+       [ ] 388. _bwg_managed_only auto-ack for SDBOOT_REMOVE_EXISTING=yes (v4.6.6):
+                rc=0 if every `loader/entries/*.conf` matches a `vmlinuz-*` (or
+                `<name>-fallback.conf`) sdboot-manage will regenerate. Foreign
+                entries (windows.conf, rescue.conf) preserve refusal — manual
+                ack via RY_INSTALL_CONFIRM_BOOT_WIPE=1 still required.
+                Markers: BOOT_WIPE_AUTO_ACK (entries=N managed_kernels=K),
+                BOOT_WIPE_AUTO_ACK_DECLINE (foreign_entries=F managed_kernels=K).
+                Regression checks:
+                  rg '^function _bwg_managed_only' → 1 hit.
+                  rg 'BOOT_WIPE_AUTO_ACK\b' → ≥1 hit.
+                  rg 'BOOT_WIPE_AUTO_ACK_DECLINE' → ≥1 hit.
+                  README RY_INSTALL_CONFIRM_BOOT_WIPE row documents the auto-ack
+                  override path.
+       [ ] 389. _resolve_boot_path + _RY_BOOT_PATH cache (v4.6.8): canonical
+                `$BOOT` resolution via `bootctl -x`, falls back to `_resolve_esp`
+                (which itself falls back to /boot with _warn). _preflight_boot_sanity
+                family operates on `$BOOT` regardless of XBOOTLDR partition layout.
+                _pbs_entry_has_valid_kernel handles BLS Type #1 `linux=` resolution
+                per uapi-group spec (anchored on $BOOT regardless of leading slash;
+                strip leading `/+` then join as `$boot/$rel`; containment check
+                retained as `..`-traversal defence).
+                Regression checks:
+                  rg '^function _resolve_boot_path' → 1 hit.
+                  rg '^function _resolve_esp' → 1 hit.
+                  rg '^function _pbs_entry_has_valid_kernel' → 1 hit.
+                  rg '_RY_BOOT_PATH' → ≥3 hits (cache + readers).
+                  rg 'bootctl -x' → ≥1 hit.
+       [ ] 390. _RY_OUTPUT_BROKEN EPIPE re-entry guard (v4.6.16): top-level
+                `set -g _RY_OUTPUT_BROKEN false` (or unset). _cleanup_pipe sets
+                it to `true` on SIGPIPE. _msg_print, _err_loud, _echo, and any
+                stderr/stdout-emitting helper short-circuits with
+                `set -q _RY_OUTPUT_BROKEN; and return 0` to avoid EPIPE re-entry
+                cascade. JSONL log writer (_log) is the single writer that
+                continues — log file is canonical state of record.
+                Regression checks:
+                  rg '_RY_OUTPUT_BROKEN' → ≥4 hits (init + setter + ≥2 short-circuits).
+                  rg 'set -q _RY_OUTPUT_BROKEN; and return' → ≥3 hits.
+                  _py_extract _cleanup_pipe | rg 'set -g _RY_OUTPUT_BROKEN true' → 1 hit.
+                  _py_extract _msg_print | rg 'set -q _RY_OUTPUT_BROKEN' → 1 hit.
+       [ ] 391. AUR_PKGS as a separate top-level array + paru hard prereq
+                (v4.6.17): mkinitcpio-firmware moved out of PKGS_ADD into
+                `set -g AUR_PKGS mt76-mt7925-dkms mkinitcpio-firmware`.
+                paru promoted from soft-dep to hard prereq — `_ry_check_deps`
+                fails preflight if `command -q paru` is false.
+                _install_aur_packages routes AUR_PKGS through `paru -S --needed
+                --noconfirm`; per-pkg retry skipped when count $AUR_PKGS ≤ 1
+                (v4.6.9 perf optimization).
+                Regression checks:
+                  rg '^set -g AUR_PKGS' → 1 hit.
+                  _py_extract _install_aur_packages | rg 'paru -S' → ≥1 hit.
+                  _py_extract _ry_check_deps | rg 'paru' → ≥1 hit.
+                  rg 'mkinitcpio-firmware' inside PKGS_ADD context → 0 hits (regression).
+                  README Prerequisites table lists paru as Required.
+       [ ] 392. _verify_summary uses _msg_nocount (v4.6.16 off-by-one fix) +
+                _msg ungated VERIFY_* increments (v4.6.5): historic bug — _msg
+                gated VERIFY_FAIL/WARN/OK increments on `VERIFY_MODE=true`,
+                so the install-pipeline footer reported 0/0/0 for pass/fail/warn
+                regardless of actual outcomes. Fix: increments are now
+                unconditional; _verify_summary uses _msg_nocount so its own
+                summary line doesn't double-count. ERR level (via _err) also
+                bumps VERIFY_FAIL — surfaces hard failures in summary.
+                Regression checks:
+                  _py_extract _msg | rg -c 'VERIFY_' → ≥3 hits (FAIL/WARN/OK).
+                  _py_extract _msg | rg 'test "\$VERIFY_MODE" = true; and set' → 0 hits (gate removed).
+                  _py_extract _verify_summary | rg '_msg_nocount' → ≥1 hit.
+                  _py_extract _err | rg 'VERIFY_FAIL' → ≥1 hit (ERR also bumps fail).
+       [ ] 393. _reclaim_stale_lock cmdline-substring defence (v4.6.12): before
+                refusing reclaim on `comm == fish`, additionally substring-match
+                "ry-install" against `/proc/<old_pid>/cmdline`. Closes the
+                fish-PID-reuse window where an unrelated fish process inherits
+                the stale lock-owner PID. Combines with v4.6.9 `test -d /proc/$old_pid`
+                liveness probe (replaces `kill -0` whose EPERM≠ESRCH conflated
+                "process exists, different owner" with "process gone").
+                Regression checks:
+                  _py_extract _reclaim_stale_lock | rg 'cmdline' → ≥1 hit.
+                  _py_extract _reclaim_stale_lock | rg 'ry-install' → ≥1 hit.
+                  _py_extract _reclaim_stale_lock | rg 'test -d /proc' → ≥1 hit.
+                  _py_extract _reclaim_stale_lock | rg 'kill -0' → 0 hits (replaced).
+       [ ] 394. New env-var runtime gates (v4.6.x cumulative):
+                  - RY_INSTALL_ALLOW_PARTIAL_UPGRADE=1 — switches Packages phase
+                    from `pacman -Syu --needed` (Arch-recommended) to
+                    `pacman -Sy --needed` (install-only; partial-upgrade risk).
+                    Violates Arch policy; documented in README Runtime Variables.
+                  - RY_INSTALL_PKG_REMOVE_CASCADE=1 — cascades installed reverse
+                    deps into the removal set when a `PKGS_DEL` package is
+                    blocked. Default skips with warn.
+                Plus established gates retained: RY_RUN_TIMEOUT (default
+                $_RY_RUN_TIMEOUT_DEFAULT=3600), RY_INSTALL_CONFIRM_BOOT_WIPE,
+                RY_INSTALL_FORCE_BOOT_REBUILD, NO_COLOR.
+                Help-text ENVIRONMENT block must enumerate all 6 vars; README
+                Runtime Variables table must match.
+                Regression checks:
+                  rg 'RY_INSTALL_ALLOW_PARTIAL_UPGRADE' → ≥2 hits (help + handler).
+                  rg 'RY_INSTALL_PKG_REMOVE_CASCADE' → ≥2 hits (help + handler).
+                  _py_extract _ry_show_help | rg -c '^  (NO_COLOR|RY_RUN_TIMEOUT|RY_INSTALL_)' → 6 hits.
+
 ─── Phase 15: Supplemental Deep Checks (19 checks) ───────────
 
   15.1 FORMATTING
@@ -2090,7 +2421,7 @@ STEP 2: ANALYZE ON DISK
 
   15.2 FUNCTION LENGTH ANALYSIS
        [ ] 216. Functions >50 lines: enumerate all. Acceptable for complex
-               modes (script is multi-thousand LOC; v4.5.8 baseline 5,205).
+               modes (script is multi-thousand LOC; v5.0.1 baseline 5,029).
        [ ] 217. Functions >100 lines: must be self-contained mode handlers.
 
   15.3 PROGRESS BAR — STEPS-ARRAY RETIRED (v4.1.9)
@@ -2217,7 +2548,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   fi
 
   # NON-TARGET HARDWARE — expected non-zero in audit container (don't flag): --verify-runtime/--verify-static → 1 (no managed files); --check → 3 (preflight) or 10 (drift); no-args install → non-zero (no sudo/root UUID). Flag only if exit ≠ expected on target.
-  # REMOVED MODES (v3.48.20–v4.1.0) — --lint --test-all --completions --logs --diff --dry-run --all --fix --force are not in the v4.5.8 argparse spec; argparse rejects them with a generic [ERR] message → EXIT_USAGE (2). No per-flag handler; rejection is structural.
+  # REMOVED MODES (v3.48.20–v4.1.0) — --lint --test-all --completions --logs --diff --dry-run --all --fix --force are not in the v5.0.1 argparse spec; argparse rejects them with a generic [ERR] message → EXIT_USAGE (2). No per-flag handler; rejection is structural.
 
   D=/home/claude/audit-data/runtime
   mkdir -p "$D"
@@ -2272,7 +2603,7 @@ STEP 1: PRE-FLIGHT + DATA COLLECTION
   timeout "$RUNTIME_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --check          >"$D/check-out.txt" 2>/dev/null &
   wait
 
-  # Group C: SIGPIPE + redirect bug. SIGPIPE test `--help | head -n 1`: PIPESTATUS[0]=141 iff help output exceeds pipe buffer (~64 KB Linux default) so fish writes after head closes; for small help (~1.7 KB in ry-install v4.5.8) PIPESTATUS=0 is normal. Either outcome acceptable at runtime; _cleanup_pipe presence verified statically (checks 189 + 321). Test still detects non-{0,141} exits (e.g., crash).
+  # Group C: SIGPIPE + redirect bug. v4.6.16 inverted SIGPIPE semantics — _cleanup_pipe sets _RY_OUTPUT_BROKEN and returns 0 instead of `exit 141`. As a result, `--help | head -n 1` should now return PIPESTATUS[0]=0 across the board (regardless of help-text size vs pipe buffer): fish's PIPE handler short-circuits the writer, JSONL log absorbs the SIGPIPE event, and the script exits normally. Test still detects non-{0,141} exits (e.g., crash) and treats 141 as a v4.6.16 regression. _cleanup_pipe presence + non-fatal contract verified statically (checks 32 + 189 + 390).
   timeout "$HELP_TIMEOUT" "${FISH_PREFIX_ARGS[@]}" fish "$S" --help 2>&1 | head -n 1 >/dev/null
   printf -- "--help|head -n 1 → %d (0=buffer-fit, 141=SIGPIPE fired; both acceptable)\n" "${PIPESTATUS[0]}" > "$D/exit-c-sigpipe.txt"
   (
@@ -2371,15 +2702,14 @@ STEP 3: CHECKLIST
                 (check 143 runtime test).
 
   12.6 SIGPIPE + SIGNAL EXITS
-       [ ] 249. Help | head -n 1 returns {0, 141}: 141 if help output
-                exceeds pipe buffer and fish writes after head closes;
-                0 if help fits entirely in pipe buffer (typical —
-                ry-install v4.5.8 help is ~1.7 KB, well below 64 KB
-                Linux default). Either is acceptable at runtime; strict
-                _cleanup_pipe presence + SIGPIPE handler registration
-                are verified statically by checks 189 + 321. Help text
-                documents 129/130/131/141/143 (HUP/INT/QUIT/PIPE/TERM
-                via _cleanup + _cleanup_pipe handler case-branches).
+       [ ] 249. Help | head -n 1 returns 0 (v4.6.16 inversion — was: {0, 141}).
+                _cleanup_pipe sets _RY_OUTPUT_BROKEN=true and returns 0;
+                fish does not exit 141. PIPESTATUS[0]=141 is now a regression
+                signal (v4.6.16 contract violation), not an acceptable outcome.
+                Help text documents 129/130/131/143 (HUP/INT/QUIT/TERM) +
+                134/138/140 (ABRT/USR1/USR2). 141 SIGPIPE row dropped from
+                help/README signals tables (v4.6.17). _cleanup_pipe non-fatal
+                contract verified statically by checks 32 + 189 + 390.
 
 
 ═══════════════════════════════════════════════════════════════
@@ -2411,9 +2741,9 @@ STEP 2: SUMMARY TABLE
    11     | 1    | 11     |      |      |
    12     | 2    | 11     |      |      |
    13     | 1    | 5      |      |      |
-   14     | 1    | 176    |      |      |
+   14     | 1    | 186    |      |      |
    15     | 1    | 19     |      |      |
-  TOTAL  |      | 375    |      |      |
+  TOTAL  |      | 385    |      |      |
 
   CRITICAL: N | HIGH: N | MED: N | LOW: N | INFO: N | BUG: N | STYLE: N
 
@@ -2446,6 +2776,23 @@ STEP 2: SUMMARY TABLE
                    / _content_hash / _RY_MANAGED_CASE_COUNT (later versions),
                    379 (legacy 'Profile destination key collision' label
                         retired with profile-system removal v4.5.0).
+    Expect 0 hits — v4.5.25 → v5.0.1 retirements (regression detectors only):
+                   nftables / nftables.service (v4.6.4, checks 345 + 346),
+                   libva-mesa-driver / lib32-libva-mesa-driver (v4.6.5, check 345),
+                   mkinitcpio-firmware-in-PKGS_ADD (v4.6.17 — relocated to AUR_PKGS, check 391),
+                   ufw-in-PKGS_DEL (v4.6.7 — relocated to MASK, check 347),
+                   141-as-exit-code anywhere (v4.6.16/.17 SIGPIPE retirement, checks 27/32/189/249),
+                   case pipe arm in _teardown (v4.6.17, check 32 regression),
+                   141 SIGPIPE row in help/README (v4.6.17, check 113 regression),
+                   PROTON_NO_WM_DECORATION (v4.5.37 ENV_VARS drop, check 349),
+                   ENABLE_LAYER_MESA_ANTI_LAG (v4.5.38 ENV_VARS drop, check 349),
+                   busy_read / busy_poll / netdev_budget / kernel.split_lock_mitigate
+                   / vm.swappiness in SYSCTL_VALUES (v4.6.x sysctl trim, checks 100 + 344),
+                   _PROFILE_USES_NM (v4.5.33 renamed to _PROFILE_USES_WIFI_BACKEND),
+                   `mv --` inside atomic-write helpers (v4.6.9 — replaced by mv -T / mv -Tf, check 118),
+                   `kill -0` in _reclaim_stale_lock (v4.6.9 — replaced by test -d /proc, check 393),
+                   command sed 's/^ *//' in _run (v4.1.4 — replaced earlier by string trim --left,
+                        which itself was refactored away in v4.5.28 _run split). 
     Examine stderr --verify-static/runtime exit 1 on non-target: read actual stderr before
                    categorizing. --check exit 3 (preflight) or 10 (drift) expected.
 

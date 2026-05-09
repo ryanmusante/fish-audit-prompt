@@ -1,13 +1,13 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-5.0.0-blue)
+![version](https://img.shields.io/badge/version-5.0.1-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![fish](https://img.shields.io/badge/fish-3.6%2B-orange)
-![checks](https://img.shields.io/badge/checks-375-brightgreen)
+![checks](https://img.shields.io/badge/checks-385-brightgreen)
 
 A structured, deterministic audit prompt for production Fish shell scripts managing system configuration, sudo, credentials, embedded configs, and argparse-dispatched modes with verification subsystems. Designed for use with Claude to perform exhaustive static and runtime analysis.
 
-Derived from `ry-install.fish` v4.5.8 · 375 checks across 15 phases · Prompt v5.0.0
+Derived from `ry-install.fish` v5.0.1 · 385 checks across 15 phases · Prompt v5.0.1
 
 [changelog](CHANGELOG.md)
 
@@ -27,7 +27,7 @@ Derived from `ry-install.fish` v4.5.8 · 375 checks across 15 phases · Prompt v
 
 | Metric | Value |
 |---|---|
-| Checks | 375 (364 static + 11 runtime) |
+| Checks | 385 (374 static + 11 runtime) |
 | Phases | 15 |
 | Passes | 3 |
 
@@ -56,7 +56,7 @@ Derived from `ry-install.fish` v4.5.8 · 375 checks across 15 phases · Prompt v
 | 11 | 11 | Test/validate |
 | 12 | 11 | Runtime |
 | 13 | 5 | Gap analysis |
-| 14 | 176 | Version-specific |
+| 14 | 186 | Version-specific |
 | 15 | 19 | Supplemental deep checks |
 
 ## Prerequisites
