@@ -1,6 +1,6 @@
 # fish-audit-prompt
 
-![version](https://img.shields.io/badge/version-7.4.22-blue)
+![version](https://img.shields.io/badge/version-7.4.23-blue)
 ![checks](https://img.shields.io/badge/checks-454-green)
 ![phases](https://img.shields.io/badge/phases-15-orange)
 ![fish](https://img.shields.io/badge/fish-3.6%2B-purple)
@@ -14,8 +14,8 @@ supplemental) totaling 454 checks (443 static + 11 runtime).
 
 | File              | Lines | Purpose                                  |
 | ----------------- | ----- | ---------------------------------------- |
-| fish-audit-prompt.txt | 1503  | Actions-only audit specification         |
-| CHANGELOG.md      |   ~50 | Kernel.org-style release log             |
+| fish-audit-prompt.txt | 1501  | Actions-only audit specification         |
+| CHANGELOG.md      |   ~80 | Kernel.org-style release log             |
 | README.md         |   ~50 | This file                                |
 
 ## Phase breakdown
@@ -47,9 +47,9 @@ AUR_PKGS:2, MASK:12, EXPECTED_VULKAN_PKGS:3, EXPECTED_SERVICES:3,
 _RY_PKG_MANAGED_SERVICES:1, _RY_POST_HOOKS:14, _RY_BOOT_CRITICAL_DSTS:4.
 
 Code metrics: LOC 5083, function count 264, --description coverage 264
-(100%), --argument-names 87, set -l 439, bare set 134, set -g in-function
-178, set -g top-level 56, `_run\b` 49, `; and ` 318, `; or ` 169,
-`string match -qr` 56, `mktemp` 28, command-prefix 241,
+(100%), --argument-names 87, set -l 450, bare set 134, set -g in-function
+151, set -g top-level 56, `_run\b` 49, `; and ` 318, `; or ` 169,
+`string match -qr` 56, `mktemp` 28, command-prefix 200,
 _RY_MANAGED_FILE_COUNT 12. Tolerance ±15% per baseline.
 
 ## Environment variables (surviving)

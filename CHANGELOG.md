@@ -1,6 +1,59 @@
 fish-audit-prompt ChangeLog
 ===========================
 
+v7.4.23 - 2026-05-20
+--------------------
+
+Prompt-internal audit pass. The script under test (ry-install.fish) is
+unchanged at v7.4.22; only the audit specification is bumped.
+
+Baselines resynced against the actual v7.4.22 source. Three counts in
+the header line and the README metrics table drifted outside the ±15%
+tolerance and are now corrected: `set -l` 439 → 450 (+2.5%), `set -g`
+in-function 178 → 151 (-15.2%), and command-prefix 241 → 200 (-17.0%).
+The remaining 11 baselines verify exact. The `_ir_validate_counts`
+15-entry invariant set is unchanged.
+
+SETUP STEP 1 ripgrep version pin upgrade path is now gated behind
+`command -v dpkg` plus `dpkg --print-architecture = amd64`. The previous
+unconditional `dpkg -i ripgrep_15.0.1-1_amd64.deb` would silently fail
+on Arch, Fedora, and ARM hosts where dpkg is absent or amd64 is not
+the runtime architecture; the gate now emits a `[WARN] rg <ver> < 14.1.1
+— pin available only for dpkg+amd64; install rg >= 14.1.1 manually`
+diagnostic instead, leaving the older rg in place rather than aborting
+setup. Functional fallback paths (apt-get / pacman / dnf installs) are
+unchanged.
+
+EXECUTION block restructured: RULES, EVIDENCE RULE, and TOOL MANDATES
+collapsed into a single RULES + TOOLS pair, eliminating the cross-block
+duplication of "Batch + parallel" and "rg > grep" between TOOL MANDATES
+and the earlier RULES section. The "CONTEXT BUDGET (3000 lines): PASS 1
+800 · PASS 2 600 · PASS 3 200 · Reasoning 1400" line is retired; the
+fixed-budget assumption was incorrect for current-generation model
+contexts, and the operational rule "raw data → disk; summary → context"
+is preserved verbatim under the renamed CONTEXT key.
+
+Header policy line "Policy: ZERO-SKIP. Every source line. Trace error
+branches, unreachable code, early returns. No sampling." rephrased to
+"Policy: ZERO-SKIP — every line, every branch, no sampling." The
+operational meaning is identical; the wording is one line shorter and
+matches the actions-only convention adopted in v7.4.22.
+
+Minor consistency fixes: STEP 3 checklist-count verify line shortened
+from "→ 443 (P12's 11 runtime checks inline in PASS 2; total 454)" to
+"= 443 (+ 11 runtime in PASS 2 = 454)"; STEP 2 ANALYZE subheadings
+"Missing data" / "Report to context" promoted to uppercase MISSING DATA
+/ REPORT TO CONTEXT to match the file's existing capitalization
+convention; data-collection preamble "All rg capped with | head -N"
+reworded to "Cap each multi-line rg with | head -N" to match the
+imperative voice used elsewhere.
+
+Static check total 443 + runtime 11 = 454, unchanged. Phase 14 (254
+checks) and Phase 15 (19 checks) ID layouts unchanged. The
+intentional 217-233 ID cross-numbering between P14 historical context
+and P15 deep-check perspective remains documented in README.md.
+
+
 v7.3.5 - v7.4.22 - 2026-05-20
 -----------------------------
 
